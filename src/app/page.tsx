@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { createClient } from '@supabase/supabase-js';
 
-// ===== SUPABASE CLIENT =====
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -25,14 +24,9 @@ export default function ChronosPomodoro() {
   const [user, setUser] = useState<any>(null);
   const [profileData, setProfileData] = useState<any>(null);
   const [showProfilePopup, setShowProfilePopup] = useState(false);
-  const [loginLoading, setLoginLoading] = useState(false); // 🔥 Loading state
-
+  const [isLoggingIn, setIsLoggingIn] = useState(false); // 🔥 loading login
   const audioContextRef = useRef<AudioContext | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
-
-  // ===== REF YOUTUBE =====
-  const playerRef = useRef<any>(null);
-  const apiLoadedRef = useRef(false);
 
   // ===== PAYMENT STATE =====
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -41,6 +35,10 @@ export default function ChronosPomodoro() {
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(300);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ===== REF YOUTUBE =====
+  const playerRef = useRef<any>(null);
+  const apiLoadedRef = useRef(false);
 
   // ===== CEK SESSION =====
   useEffect(() => {
@@ -279,29 +277,31 @@ export default function ChronosPomodoro() {
     setIsFocusMode(!isFocusMode);
   };
 
-  // ===== 🔥 LOGIN DENGAN LOADING =====
+  // ===== 🔥 LOGIN dengan LOADING DOTS =====
   const handleLoginWithGoogle = async () => {
-    setLoginLoading(true);
+    setIsLoggingIn(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-          redirectTo: window.location.origin,
-        },
+        options: { redirectTo: window.location.origin },
       });
       if (error) {
         console.error('Login error:', error);
         alert('Gagal login, coba lagi.');
-        setLoginLoading(false);
+        setIsLoggingIn(false);
       } else {
-        // Supabase akan redirect, loading tetap aktif sampai redirect selesai
-        // tapi kita tetap set false setelah delay sebagai fallback
-        setTimeout(() => setLoginLoading(false), 5000);
+        setShowLoginModal(false);
+        // Redirect sudah ditangani oleh Supabase, loading akan tetap muncul sampai redirect
+        // Biarkan isLoggingIn true sampai redirect terjadi
+        // Tapi kita set false setelah 5 detik sebagai fallback
+        setTimeout(() => {
+          setIsLoggingIn(false);
+        }, 5000);
       }
     } catch (err) {
       console.error(err);
+      setIsLoggingIn(false);
       alert('Terjadi kesalahan saat login.');
-      setLoginLoading(false);
     }
   };
 
@@ -312,7 +312,7 @@ export default function ChronosPomodoro() {
     setShowProfilePopup(false);
   };
 
-  // ===== PAYMENT =====
+  // ===== FUNGSI BAYAR VIP =====
   const handleBayarVip = async () => {
     if (!user) {
       setShowLoginModal(true);
@@ -436,18 +436,14 @@ export default function ChronosPomodoro() {
     );
   };
 
+  // ===== RENDER =====
   return (
     <div className="h-screen overflow-hidden flex flex-col transition-all duration-500" style={{ backgroundColor: getBgColor() }}>
       <style jsx global>{`
         @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
         @keyframes slideUp { 0% { opacity: 0; transform: translateY(20px) scale(0.95); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
-        @keyframes dots { 0%, 20% { content: '.'; } 40% { content: '..'; } 60% { content: '...'; } }
         .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
         .animate-slide-up { animation: slideUp 0.3s ease-out forwards; }
-        .loading-dots::after {
-          content: '';
-          animation: dots 1.2s steps(3, end) infinite;
-        }
       `}</style>
 
       <header className="flex-shrink-0 flex justify-between items-center px-6 py-3">
@@ -473,8 +469,7 @@ export default function ChronosPomodoro() {
                   <div id="youtube-player-container" className="w-full h-full"><div id="youtube-player" className="w-full h-full"></div></div>
                 </div>
                 <a href="https://www.youtube.com/watch?v=OUnk5RpRKzA" target="_blank" rel="noopener" className={`text-[9px] flex items-center gap-1 justify-center mt-1 transition-colors ${mutedText} hover:text-[#ff0000]`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-                  Buka di YouTube
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186..."/></svg> Buka di YouTube
                 </a>
               </div>
               <div className={`text-center text-[10px] ${mutedText} border-t border-[#30363d] pt-2`}>
@@ -574,8 +569,21 @@ export default function ChronosPomodoro() {
 
       {/* ===== MODAL VIP ===== */}
       {showPremiumModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) { setShowPremiumModal(false); setTimerState('idle'); setCurrentTask(''); resetTimer(currentMode); } }}>
-          <div className={`w-full max-w-md mx-4 p-8 rounded-2xl shadow-2xl animate-slide-up ${theme === 'dark' ? 'bg-[#161b22] border border-[#30363d]' : 'bg-white border border-gray-200'}`} onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowPremiumModal(false);
+              setTimerState('idle');
+              setCurrentTask('');
+              resetTimer(currentMode);
+            }
+          }}
+        >
+          <div
+            className={`w-full max-w-md mx-4 p-8 rounded-2xl shadow-2xl animate-slide-up ${theme === 'dark' ? 'bg-[#161b22] border border-[#30363d]' : 'bg-white border border-gray-200'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="text-center mb-6">
               <div className={`text-2xl font-bold ${theme === 'dark' ? 'text-[#e6edf3]' : 'text-black'}`}>Paket VIP</div>
               <div className={`text-sm mt-1 ${mutedText}`}>Akses semua mode timer tanpa batas</div>
@@ -641,31 +649,29 @@ export default function ChronosPomodoro() {
         </div>
       )}
 
-      {/* ===== MODAL LOGIN ===== */}
+      {/* ===== MODAL LOGIN dengan LOADING DOTS ===== */}
       {showLoginModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowLoginModal(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => { if (!isLoggingIn) setShowLoginModal(false); }}>
           <div className={`w-full max-w-sm mx-4 p-8 rounded-2xl shadow-2xl animate-slide-up ${theme === 'dark' ? 'bg-[#161b22] border border-[#30363d]' : 'bg-white border border-gray-200'}`} onClick={(e) => e.stopPropagation()}>
             <div className="text-center mb-6">
               <div className={`text-2xl font-bold ${theme === 'dark' ? 'text-[#e6edf3]' : 'text-black'}`}>Login</div>
               <div className={`text-sm mt-1 ${mutedText}`}>Masuk dengan akun Google</div>
             </div>
+
+            {/* 🔥 BUTTON LOGIN DENGAN LOADING */}
             <button
               onClick={handleLoginWithGoogle}
-              disabled={loginLoading}
-              className={`w-full flex items-center justify-center gap-3 py-3 rounded-full font-bold text-sm tracking-wide transition-all ${
-                loginLoading
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-white text-gray-800 border border-gray-300 hover:bg-gray-100 active:scale-[0.98]'
-              }`}
+              disabled={isLoggingIn}
+              className="w-full flex items-center justify-center gap-3 py-3 rounded-full font-bold text-sm tracking-wide transition-all bg-white text-gray-800 border border-gray-300 hover:bg-gray-100 active:scale-[0.98] disabled:opacity-60"
             >
-              {loginLoading ? (
-                <span className="flex items-center gap-2">
-                  <svg className="animate-spin h-4 w-4 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              {isLoggingIn ? (
+                <>
+                  <svg className="animate-spin h-5 w-5 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                   Memproses...
-                </span>
+                </>
               ) : (
                 <>
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
@@ -678,8 +684,20 @@ export default function ChronosPomodoro() {
                 </>
               )}
             </button>
-            <button onClick={() => setShowLoginModal(false)} className={`w-full mt-3 py-2 rounded-full text-xs tracking-wide transition-all border ${theme === 'dark' ? 'text-[#e6edf3]/60 border-[#30363d] hover:text-white hover:border-white/30' : 'text-black/60 border-black/20 hover:text-black hover:border-black/50'}`}>Tutup</button>
-            <button onClick={() => setShowLoginModal(false)} className="absolute top-4 right-4 text-2xl text-white/40 hover:text-white">✕</button>
+
+            <button
+              onClick={() => { if (!isLoggingIn) setShowLoginModal(false); }}
+              className={`w-full mt-3 py-2 rounded-full text-xs tracking-wide transition-all border ${theme === 'dark' ? 'text-[#e6edf3]/60 border-[#30363d] hover:text-white hover:border-white/30' : 'text-black/60 border-black/20 hover:text-black hover:border-black/50'}`}
+            >
+              Tutup
+            </button>
+
+            <button
+              onClick={() => { if (!isLoggingIn) setShowLoginModal(false); }}
+              className="absolute top-4 right-4 text-2xl text-white/40 hover:text-white"
+            >
+              ✕
+            </button>
           </div>
         </div>
       )}
@@ -721,6 +739,7 @@ export default function ChronosPomodoro() {
         </div>
       )}
 
+      {/* ===== QRCode.js ===== */}
       {showPaymentModal && qrisData && (
         <script
           dangerouslySetInnerHTML={{
