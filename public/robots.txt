@@ -1,0 +1,3 @@
+User-Agent: *
+Allow: /
+Sitemap: https://chronos.vercel.app/sitemap.xml

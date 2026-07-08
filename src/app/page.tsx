@@ -1,65 +1,604 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
+import { createClient } from '@supabase/supabase-js';
+
+// ===== SUPABASE CLIENT =====
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+export default function ChronosPomodoro() {
+  // ===== STATE =====
+  const [minutes, setMinutes] = useState(25);
+  const [seconds, setSeconds] = useState(0);
+  const [currentMode, setCurrentMode] = useState<'pomodoro' | 'short' | 'long'>('pomodoro');
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [timerState, setTimerState] = useState<'idle' | 'running' | 'paused'>('idle');
+  const [isBeat, setIsBeat] = useState(false);
+  const [isVipMode, setIsVipMode] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState(false);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [currentTask, setCurrentTask] = useState('');
+  const [user, setUser] = useState<any>(null);
+  const [profileData, setProfileData] = useState<any>(null);
+  const [showProfilePopup, setShowProfilePopup] = useState(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  // ===== REF UNTUK YOUTUBE PLAYER =====
+  const playerRef = useRef<any>(null);
+  const apiLoadedRef = useRef(false);
+
+  // ===== CEK SESSION =====
+  useEffect(() => {
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
+    };
+    getSession();
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => listener?.subscription.unsubscribe();
+  }, []);
+
+  // ===== FETCH PROFILE =====
+  useEffect(() => {
+    if (!user) { setProfileData(null); return; }
+    const fetchProfile = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (!error && data) {
+        setProfileData(data);
+        const isVip = data.vip_expiry ? new Date(data.vip_expiry) > new Date() : false;
+        localStorage.setItem('chronos_vip_status', JSON.stringify({ isVipMode: isVip, isFocusMode: isVip }));
+        setIsVipMode(isVip);
+      }
+    };
+    fetchProfile();
+  }, [user]);
+
+  // ===== TUTUP POPUP =====
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+        setShowProfilePopup(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // ===== YOUTUBE PLAYER =====
+  const initPlayer = () => {
+    if (typeof window === 'undefined') return;
+    const container = document.getElementById('youtube-player-container');
+    if (!container || playerRef.current) return;
+    try {
+      const newPlayer = new (window as any).YT.Player('youtube-player', {
+        videoId: 'OUnk5RpRKzA',
+        playerVars: {
+          autoplay: 1,
+          mute: 1,
+          controls: 1,
+          rel: 0,
+          modestbranding: 0,
+          playsinline: 1,
+        },
+        events: {
+          onReady: (event: any) => {
+            playerRef.current = event.target;
+            setTimeout(() => {
+              if (playerRef.current) {
+                playerRef.current.unMute();
+                playerRef.current.playVideo();
+              }
+            }, 5000);
+          },
+          onError: (err: any) => {
+            console.warn('YouTube error:', err);
+            const container = document.getElementById('youtube-player-container');
+            if (container) {
+              container.innerHTML = `
+                <iframe 
+                  src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=0&playsinline=1" 
+                  title="YouTube video player" 
+                  frameborder="0" 
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                  referrerpolicy="strict-origin-when-cross-origin" 
+                  allowfullscreen
+                  class="w-full h-full"
+                ></iframe>
+              `;
+            }
+          },
+        },
+      });
+    } catch (e) {
+      console.warn('Gagal init YouTube:', e);
+      const container = document.getElementById('youtube-player-container');
+      if (container) {
+        container.innerHTML = `
+          <iframe 
+            src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=0&playsinline=1" 
+            title="YouTube video player" 
+            frameborder="0" 
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+            referrerpolicy="strict-origin-when-cross-origin" 
+            allowfullscreen
+            class="w-full h-full"
+          ></iframe>
+        `;
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || apiLoadedRef.current) return;
+    apiLoadedRef.current = true;
+    if ((window as any).YT && (window as any).YT.Player) {
+      initPlayer();
+      return;
+    }
+    const originalCallback = (window as any).onYouTubeIframeAPIReady;
+    (window as any).onYouTubeIframeAPIReady = () => {
+      if (originalCallback) originalCallback();
+      initPlayer();
+    };
+    if (!document.getElementById('youtube-api')) {
+      const tag = document.createElement('script');
+      tag.id = 'youtube-api';
+      tag.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(tag);
+    }
+    return () => {
+      if ((window as any).YT && playerRef.current) {
+        try { playerRef.current.destroy(); } catch (e) {}
+      }
+    };
+  }, []);
+
+  // ===== PREMIUM ALARM =====
+  const playPremiumAlarm = () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioContextRef.current = ctx;
+      const playChime = (freq: number, delay: number, dur: number = 0.4) => {
+        setTimeout(() => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime);
+          gain.gain.setValueAtTime(0.3, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + dur);
+        }, delay * 1000);
+      };
+      playChime(523, 0, 0.5);
+      playChime(659, 0.35, 0.5);
+      playChime(784, 0.7, 0.6);
+      setTimeout(() => {
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(880, ctx.currentTime);
+        osc2.frequency.linearRampToValueAtTime(890, ctx.currentTime + 0.3);
+        gain2.gain.setValueAtTime(0.08, ctx.currentTime);
+        gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(ctx.currentTime);
+        osc2.stop(ctx.currentTime + 0.6);
+      }, 1200);
+    } catch (e) { console.log('Alarm error:', e); }
+  };
+
+  // ===== SIMPAN DATA =====
+  const saveSessionData = (task: string, mode: string, duration: number) => {
+    if (!task.trim()) return;
+    const session = { id: Date.now(), task: task.trim(), mode, duration, completedAt: new Date().toISOString() };
+    const existing = JSON.parse(localStorage.getItem('chronos_sessions') || '[]');
+    existing.push(session);
+    localStorage.setItem('chronos_sessions', JSON.stringify(existing));
+  };
+
+  // ===== WARNA =====
+  const darkBg = '#0d1117';
+  const darkCard = '#161b22';
+  const darkBorder = '#30363d';
+  const getBgColor = () => (theme === 'dark' ? darkBg : '#FFFFFF');
+  const getCardStyle = () => ({
+    backgroundColor: theme === 'dark' ? darkCard : '#F5F5F5',
+    border: `1px solid ${theme === 'dark' ? darkBorder : '#DDDDDD'}`,
+    boxShadow: theme === 'dark' ? '0 10px 30px rgba(0,0,0,0.6)' : '0 10px 30px rgba(0,0,0,0.1)',
+    borderRadius: '1.5rem',
+  });
+
+  const getStatusText = () => {
+    switch (currentMode) {
+      case 'pomodoro': return '1# Tetap Fokus!';
+      case 'short': return '2# Ngopi Dulu!';
+      case 'long': return '3# Makan Dulu!';
+    }
+  };
+
+  // ===== TIMER FUNCTIONS =====
+  const changeMode = (min: number, mode: 'pomodoro' | 'short' | 'long') => {
+    setTimerState('idle');
+    setMinutes(min);
+    setSeconds(0);
+    setCurrentMode(mode);
+    if (audioContextRef.current) { audioContextRef.current.close(); audioContextRef.current = null; }
+  };
+  const resetTimer = (mode = currentMode) => {
+    setTimerState('idle');
+    const defaultMins = mode === 'pomodoro' ? 25 : mode === 'short' ? 5 : 15;
+    setMinutes(defaultMins);
+    setSeconds(0);
+    if (audioContextRef.current) { audioContextRef.current.close(); audioContextRef.current = null; }
+  };
+
+  const handleTimer = () => {
+    if (isFocusMode && !isVipMode) { setShowPremiumModal(true); return; }
+    if (timerState === 'idle') setTimerState('running');
+    else if (timerState === 'running') setTimerState('paused');
+    else if (timerState === 'paused') setTimerState('running');
+  };
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (timerState === 'running') {
+      timer = setInterval(() => {
+        if (seconds === 0) {
+          if (minutes === 0) {
+            clearInterval(timer);
+            if (isVipMode && currentTask.trim()) {
+              const duration = currentMode === 'pomodoro' ? 25 : currentMode === 'short' ? 5 : 15;
+              saveSessionData(currentTask, currentMode, duration);
+            }
+            if (isVipMode) playPremiumAlarm();
+            else alert(`Sesi selesai!`);
+            resetTimer(currentMode);
+          } else {
+            setMinutes(prev => prev - 1);
+            setSeconds(59);
+            setIsBeat(true);
+            setTimeout(() => setIsBeat(false), 300);
+          }
+        } else {
+          setSeconds(prev => prev - 1);
+        }
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [timerState, minutes, seconds, currentMode, isVipMode, currentTask]);
+
+  const formatTime = () => {
+    const m = minutes < 10 ? `0${minutes}` : minutes;
+    const s = seconds < 10 ? `0${seconds}` : seconds;
+    return `${m}:${s}`;
+  };
+
+  const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
+  const toggleFocusMode = () => {
+    if (!isVipMode) { setShowPremiumModal(true); return; }
+    setIsFocusMode(!isFocusMode);
+  };
+
+  // ===== LOGIN / LOGOUT =====
+  const handleLoginWithGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    });
+    if (error) { console.error('Login error:', error); alert('Gagal login, coba lagi.'); } 
+    else { setShowLoginModal(false); }
+  };
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setProfileData(null);
+    setShowProfilePopup(false);
+  };
+
+  // ===== WARNA DINAMIS =====
+  const textColor = theme === 'dark' ? 'text-[#e6edf3]' : 'text-black';
+  const mutedText = theme === 'dark' ? 'text-[#e6edf3]/60' : 'text-gray-600';
+  const borderColor = theme === 'dark' ? 'border-[#30363d]' : 'border-black/20';
+  const inputBg = theme === 'dark' ? 'bg-[#0d1117]' : 'bg-black/5';
+
+  const isUserVip = profileData?.vip_expiry ? new Date(profileData.vip_expiry) > new Date() : false;
+
+  // ===== PROFILE BUTTON =====
+  const ProfileButton = () => {
+    if (user) {
+      return (
+        <div className="relative">
+          <button onClick={() => setShowProfilePopup(!showProfilePopup)} className="flex items-center gap-2 focus:outline-none">
+            <img src={user.user_metadata?.avatar_url || '/default-avatar.png'} alt="Avatar" className="w-8 h-8 rounded-full border border-[#30363d] hover:border-[#0366d6] transition-colors" />
+          </button>
+          {showProfilePopup && (
+            <div ref={popupRef} className={`absolute right-0 mt-2 w-72 rounded-xl shadow-2xl border p-4 z-50 ${theme === 'dark' ? 'bg-[#161b22] border-[#30363d] text-[#e6edf3]' : 'bg-white border-gray-200 text-black'}`}>
+              <div className="flex items-center gap-3 mb-3">
+                <img src={user.user_metadata?.avatar_url || '/default-avatar.png'} alt="Avatar" className="w-12 h-12 rounded-full border-2 border-[#0366d6] object-cover" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm truncate">{user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'}</p>
+                  <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                </div>
+              </div>
+              <div className={`border-t ${theme === 'dark' ? 'border-[#30363d]' : 'border-gray-200'} pt-3`}>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-medium">Status VIP</span>
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isUserVip ? 'bg-[#0366d6] text-white' : 'bg-gray-500 text-white'}`}>
+                    {isUserVip ? '⭐ AKTIF' : 'FREE'}
+                  </span>
+                </div>
+                {isUserVip && profileData?.vip_expiry && (
+                  <div className="flex justify-between items-center mt-1">
+                    <span className="text-xs text-gray-400">Berlaku sampai</span>
+                    <span className="text-xs font-medium">{new Date(profileData.vip_expiry).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                  </div>
+                )}
+              </div>
+              <button onClick={handleLogout} className={`w-full mt-3 py-2 rounded-lg text-sm font-medium transition ${theme === 'dark' ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-red-500/10 text-red-600 hover:bg-red-500/20'}`}>Logout</button>
+            </div>
+          )}
+        </div>
+      );
+    }
+    return (
+      <button onClick={() => setShowLoginModal(true)} className={`rounded-full transition-all hover:scale-105 border p-2 flex items-center justify-center ${theme === 'dark' ? 'bg-white/10 hover:bg-white/20 text-[#e6edf3] border-[#30363d]' : 'bg-black/10 hover:bg-black/20 text-black border-black/30'}`}>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+        </svg>
+      </button>
+    );
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="h-screen overflow-hidden flex flex-col transition-all duration-500" style={{ backgroundColor: getBgColor() }}>
+      <style jsx global>{`
+        @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+        @keyframes slideUp { 0% { opacity: 0; transform: translateY(20px) scale(0.95); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        .animate-slide-up { animation: slideUp 0.3s ease-out forwards; }
+      `}</style>
+
+      {/* ===== HEADER TANPA GARIS + LOGO ===== */}
+      <header className="flex-shrink-0 flex justify-between items-center px-6 py-3">
+        <div className="flex items-center gap-2">
+          <Image
+            src="/icon.svg"
+            alt="Chronos Logo"
+            width={32}
+            height={32}
+            className="h-8 w-8"
+            priority
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          <div className={`text-xl font-bold tracking-[0.3em] ${textColor}`}>CHRONOS</div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className="flex items-center gap-3">
+          {isFocusMode && isVipMode && <ProfileButton />}
+          <button onClick={toggleFocusMode} className={`rounded-full transition-all hover:scale-105 border px-4 py-1.5 text-xs font-bold tracking-wider ${theme === 'dark' ? 'bg-[#0366d6] text-white border-[#0366d6] hover:bg-[#0355b0]' : 'bg-black text-white border-black hover:bg-gray-800'}`}>
+            {isFocusMode ? 'FREE' : 'VIP'}
+          </button>
         </div>
-      </main>
+      </header>
+
+      {/* ===== MAIN ===== */}
+      <div className="flex-1 flex items-center justify-center px-4 overflow-hidden">
+        <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+          {/* KIRI: MUSIK + INFO (hanya free mode) */}
+          {!isFocusMode && (
+            <div className="hidden lg:block lg:col-span-3 space-y-3 lg:mt-12">
+              <div className="text-center">
+                <p className={`text-[10px] font-bold tracking-wider uppercase ${textColor}`}>🎵 Putar Musik</p>
+                <div className="aspect-video w-full rounded-xl overflow-hidden border border-[#30363d] mt-1 bg-black">
+                  <div id="youtube-player-container" className="w-full h-full">
+                    <div id="youtube-player" className="w-full h-full"></div>
+                  </div>
+                </div>
+                <a href="https://www.youtube.com/watch?v=OUnk5RpRKzA" target="_blank" rel="noopener" className={`text-[9px] flex items-center gap-1 justify-center mt-1 transition-colors ${mutedText} hover:text-[#ff0000]`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                  </svg>
+                  Buka di YouTube
+                </a>
+              </div>
+              <div className={`text-center text-[10px] ${mutedText} border-t border-[#30363d] pt-2`}>
+                <p className="font-bold">✨ Fokus Lebih Produktif</p>
+                <p>Timer Pomodoro premium.</p>
+                <p className="text-[9px]">Gratis dengan iklan · Privasi terjaga</p>
+              </div>
+            </div>
+          )}
+
+          {/* ===== CARD UTAMA (TENGAH) ===== */}
+          <div className={`${isFocusMode ? 'lg:col-span-12' : 'lg:col-span-6'} flex flex-col items-center lg:-mt-8`}>
+            {/* Tagline singkat */}
+            {!isFocusMode && (
+              <div className="text-center mb-3">
+                <h1 className={`text-xl md:text-2xl font-bold ${textColor}`}>
+                  Fokus dengan{' '}
+                  <span className="text-[#0366d6] text-2xl md:text-3xl font-extrabold">
+                    Chronos
+                  </span>
+                </h1>
+                <p className={`text-[11px] ${mutedText}`}>Pomodoro Timer · Statistik · Bebas Iklan (VIP)</p>
+              </div>
+            )}
+
+            <div className="w-full max-w-md mx-auto p-6 rounded-3xl shadow-2xl transition-all duration-500" style={getCardStyle()}>
+              {/* TAB MODE */}
+              <div className="flex justify-between mb-4 text-[10px] md:text-xs tracking-[0.2em] font-bold">
+                {['POMODORO', 'ISTIRAHAT SINGKAT', 'ISTIRAHAT PANJANG'].map((label, idx) => {
+                  const mode = idx === 0 ? 'pomodoro' : idx === 1 ? 'short' : 'long';
+                  const isActive = currentMode === mode;
+                  return (
+                    <button key={mode} onClick={() => changeMode(idx === 0 ? 25 : idx === 1 ? 5 : 15, mode)} className={`px-3 py-1 md:px-4 md:py-1.5 rounded-lg transition-all text-[10px] md:text-xs font-bold outline-none ${isActive ? (theme === 'dark' ? 'bg-[#0366d6] text-white' : 'bg-black text-white') : (theme === 'dark' ? 'text-[#e6edf3]/60 hover:bg-[#e6edf3]/10' : 'text-black/60 hover:bg-black/10')}`}>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="text-center mb-1">
+                <span className={`text-xl font-bold tracking-wider ${theme === 'dark' ? 'text-[#0366d6]' : 'text-[#1a1a1a]'}`}>{getStatusText()}</span>
+              </div>
+
+              <div className="text-center my-2">
+                <div className={`text-7xl sm:text-8xl font-bold tracking-tighter transition-all duration-300 ${textColor} ${isBeat ? 'scale-105' : 'scale-100'}`}>
+                  {formatTime()}
+                </div>
+              </div>
+
+              <div className="flex justify-center mt-4">
+                {timerState === 'idle' ? (
+                  <button onClick={handleTimer} className={`font-bold px-8 py-3 rounded-full text-sm tracking-wide transition-all shadow-md border ${theme === 'dark' ? 'bg-[#0366d6] text-white border-[#0366d6] hover:bg-[#0355b0]' : 'bg-black text-white border-black hover:bg-gray-800'} active:scale-[0.98]`}>
+                    MULAI
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setTimerState(prev => prev === 'running' ? 'paused' : 'running')} className={`font-bold px-6 py-3 rounded-full text-sm tracking-wide transition-all shadow-md border ${theme === 'dark' ? 'bg-[#0366d6] text-white border-[#0366d6] hover:bg-[#0355b0]' : 'bg-black text-white border-black hover:bg-gray-800'} active:scale-[0.98]`}>
+                      {timerState === 'running' ? 'PAUSE' : 'LANJUT'}
+                    </button>
+                    <button onClick={() => { resetTimer(currentMode); setTimerState('idle'); }} className={`p-3 rounded-full transition-all shadow-md border ${theme === 'dark' ? 'bg-[#0366d6] text-white border-[#0366d6] hover:bg-[#0355b0]' : 'bg-black text-white border-black hover:bg-gray-800'} active:scale-[0.98]`}>
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {isFocusMode && (
+                <div className={`mt-4 pt-3 border-t ${borderColor}`}>
+                  <input type="text" placeholder="Apa yang sedang kamu kerjakan?" value={currentTask} onChange={(e) => setCurrentTask(e.target.value)} className={`w-full ${inputBg} border-b-2 focus:border-[#0366d6] outline-none transition-all px-2 py-2 text-sm ${theme === 'dark' ? 'border-[#30363d] text-[#e6edf3] placeholder-[#e6edf3]/50' : 'border-black/20 text-black placeholder-black/50'}`} />
+                  <p className={`text-[9px] mt-1 ${mutedText}`}>✅ Data akan tersimpan saat sesi selesai.</p>
+                </div>
+              )}
+            </div>
+
+            {/* SOCIAL PROOF & CTA */}
+            {!isFocusMode && (
+              <div className="w-full text-center mt-4">
+                <div className={`flex flex-wrap justify-center gap-3 text-[10px] ${mutedText}`}>
+                  <span>⭐ 4.9/5 (200+)</span>
+                  <span>⏱️ 10.000+ sesi</span>
+                  <span>🔒 Privasi terjaga</span>
+                </div>
+                <p className={`text-[10px] mt-1 ${mutedText}`}>
+                  💳 <span className="font-bold text-[#0366d6]">Rp 10.000</span>/bulan – Bayar sekali, fokus selamanya.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* ===== KANAN: MUSIK + QUOTE ===== */}
+          {!isFocusMode && (
+            <div className="hidden lg:block lg:col-span-3 space-y-3 lg:mt-12">
+              <div className="text-center">
+                <p className={`text-[10px] font-bold tracking-wider uppercase ${textColor}`}>☕ Putar Musik</p>
+                <div className="aspect-video w-full rounded-xl overflow-hidden border border-[#30363d] mt-1 bg-black">
+                  <iframe
+                    className="w-full h-full"
+                    src="https://www.youtube.com/embed/hnGt0Jb2H2g?autoplay=0&mute=1&controls=1&modestbranding=0&rel=0"
+                    title="Rainy Day Cafe"
+                    frameBorder="0"
+                    allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  ></iframe>
+                </div>
+                <a href="https://www.youtube.com/watch?v=hnGt0Jb2H2g" target="_blank" rel="noopener" className={`text-[9px] flex items-center gap-1 justify-center mt-1 transition-colors ${mutedText} hover:text-[#ff0000]`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                  </svg>
+                  Buka di YouTube
+                </a>
+              </div>
+              {/* QUOTE UNTUK KESEIMBANGAN */}
+              <div className={`text-center text-[11px] ${mutedText} border-t border-[#30363d] pt-2 italic`}>
+                <p className="font-light">"Fokus bukan tentang menghindari gangguan,</p>
+                <p className="font-light">tapi tentang memilih apa yang penting."</p>
+                <p className="text-[9px] font-bold mt-1 text-[#0366d6]">— Chronos</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ===== FOOTER ===== */}
+      <footer className={`flex-shrink-0 w-full text-center text-[10px] py-2 ${mutedText}`}>
+        <span>©2026 Chronos</span>
+        <span className="mx-2">-</span>
+        <a href="https://jbtech.biz.id" target="_blank" rel="noopener" className="hover:underline text-[#0366d6]">jbtech.biz.id</a>
+        <span className="ml-2">All rights reserved.</span>
+      </footer>
+
+      {/* ===== MODAL VIP ===== */}
+      {showPremiumModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => { setShowPremiumModal(false); setTimerState('idle'); setCurrentTask(''); resetTimer(currentMode); }}>
+          <div className={`w-full max-w-md mx-4 p-8 rounded-2xl shadow-2xl animate-slide-up ${theme === 'dark' ? 'bg-[#161b22] border border-[#30363d]' : 'bg-white border border-gray-200'}`} onClick={(e) => e.stopPropagation()}>
+            <div className="text-center mb-6">
+              <div className={`text-2xl font-bold ${theme === 'dark' ? 'text-[#e6edf3]' : 'text-black'}`}>Paket VIP</div>
+              <div className={`text-sm mt-1 ${mutedText}`}>Akses semua mode timer tanpa batas</div>
+            </div>
+            <ul className={`space-y-3 text-sm ${theme === 'dark' ? 'text-[#e6edf3]/80' : 'text-black/80'}`}>
+              <li className="flex items-center gap-3"><span className="text-[#0366d6]">✓</span> Tanpa Iklan</li>
+              <li className="flex items-center gap-3"><span className="text-[#0366d6]">✓</span> Alarm Premium</li>
+              <li className="flex items-center gap-3"><span className="text-[#0366d6]">✓</span> Statistik Harian & Mingguan</li>
+              <li className="flex items-center gap-3"><span className="text-[#0366d6]">✓</span> Input Tugas Aktif & Simpan Data</li>
+            </ul>
+            <div className="mt-6 p-4 rounded-xl border border-[#0366d6]/30 bg-[#0366d6]/5 text-center">
+              <div className={`text-3xl font-bold text-[#e6edf3]`}>Rp 10.000</div>
+              <div className={`text-xs mt-0.5 ${mutedText}`}>/ bulan · berlangganan hingga dibatalkan</div>
+            </div>
+            <button onClick={() => { alert('🎉 UI VIP diaktifkan! Silakan pergi ke halaman Profil untuk mengaktifkan akses timer.'); setShowPremiumModal(false); setIsFocusMode(true); setTimerState('idle'); resetTimer(currentMode); }} className="w-full mt-6 py-3 rounded-full font-bold text-sm tracking-wide transition-all bg-[#0366d6] text-white border border-[#0366d6] hover:bg-[#0355b0] active:scale-[0.98]">
+              Aktifkan VIP
+            </button>
+            <button onClick={() => { setShowPremiumModal(false); setTimerState('idle'); setCurrentTask(''); resetTimer(currentMode); }} className={`w-full mt-3 py-2 rounded-full text-xs tracking-wide transition-all border ${theme === 'dark' ? 'text-[#e6edf3]/60 border-[#30363d] hover:text-white hover:border-white/30' : 'text-black/60 border-black/20 hover:text-black hover:border-black/50'}`}>
+              Lewati & lanjutkan (dengan iklan)
+            </button>
+            <button onClick={() => { setShowPremiumModal(false); setTimerState('idle'); setCurrentTask(''); resetTimer(currentMode); }} className="absolute top-4 right-4 text-2xl text-white/40 hover:text-white">✕</button>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL LOGIN ===== */}
+      {showLoginModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowLoginModal(false)}>
+          <div className={`w-full max-w-sm mx-4 p-8 rounded-2xl shadow-2xl animate-slide-up ${theme === 'dark' ? 'bg-[#161b22] border border-[#30363d]' : 'bg-white border border-gray-200'}`} onClick={(e) => e.stopPropagation()}>
+            <div className="text-center mb-6">
+              <div className={`text-2xl font-bold ${theme === 'dark' ? 'text-[#e6edf3]' : 'text-black'}`}>Login</div>
+              <div className={`text-sm mt-1 ${mutedText}`}>Masuk dengan akun Google</div>
+            </div>
+            <button onClick={handleLoginWithGoogle} className="w-full flex items-center justify-center gap-3 py-3 rounded-full font-bold text-sm tracking-wide transition-all bg-white text-gray-800 border border-gray-300 hover:bg-gray-100 active:scale-[0.98]">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              Login dengan Google
+            </button>
+            <button onClick={() => setShowLoginModal(false)} className={`w-full mt-3 py-2 rounded-full text-xs tracking-wide transition-all border ${theme === 'dark' ? 'text-[#e6edf3]/60 border-[#30363d] hover:text-white hover:border-white/30' : 'text-black/60 border-black/20 hover:text-black hover:border-black/50'}`}>Tutup</button>
+            <button onClick={() => setShowLoginModal(false)} className="absolute top-4 right-4 text-2xl text-white/40 hover:text-white">✕</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
