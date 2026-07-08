@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { createClient } from '@supabase/supabase-js';
 
+// ===== SUPABASE CLIENT =====
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -24,11 +25,22 @@ export default function ChronosPomodoro() {
   const [user, setUser] = useState<any>(null);
   const [profileData, setProfileData] = useState<any>(null);
   const [showProfilePopup, setShowProfilePopup] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false); // 🔥 Loading state
+
   const audioContextRef = useRef<AudioContext | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
 
+  // ===== REF YOUTUBE =====
   const playerRef = useRef<any>(null);
   const apiLoadedRef = useRef(false);
+
+  // ===== PAYMENT STATE =====
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [qrisData, setQrisData] = useState<string | null>(null);
+  const [paymentId, setPaymentId] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState(300);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // ===== CEK SESSION =====
   useEffect(() => {
@@ -263,25 +275,111 @@ export default function ChronosPomodoro() {
   };
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
-  // ===== 🔥 Toggle VIP preview (bebas) =====
   const toggleFocusMode = () => {
     setIsFocusMode(!isFocusMode);
   };
 
-  // ===== LOGIN / LOGOUT =====
+  // ===== 🔥 LOGIN DENGAN LOADING =====
   const handleLoginWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin },
-    });
-    if (error) { console.error('Login error:', error); alert('Gagal login, coba lagi.'); }
-    else { setShowLoginModal(false); }
+    setLoginLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+      if (error) {
+        console.error('Login error:', error);
+        alert('Gagal login, coba lagi.');
+        setLoginLoading(false);
+      } else {
+        // Supabase akan redirect, loading tetap aktif sampai redirect selesai
+        // tapi kita tetap set false setelah delay sebagai fallback
+        setTimeout(() => setLoginLoading(false), 5000);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Terjadi kesalahan saat login.');
+      setLoginLoading(false);
+    }
   };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
     setProfileData(null);
     setShowProfilePopup(false);
+  };
+
+  // ===== PAYMENT =====
+  const handleBayarVip = async () => {
+    if (!user) {
+      setShowLoginModal(true);
+      setShowPremiumModal(false);
+      return;
+    }
+    if (!profileData) {
+      alert('Profil belum siap. Silakan refresh halaman.');
+      return;
+    }
+
+    setPaymentLoading(true);
+    try {
+      const response = await fetch('/api/payment/create-vip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: profileData.id,
+          email: profileData.email,
+          name: profileData.full_name,
+          amount: 10000,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Gagal membuat pembayaran');
+
+      if (data.success && data.qrisString) {
+        setQrisData(data.qrisString);
+        setPaymentId(data.paymentId);
+        setCountdown(300);
+        setShowPaymentModal(true);
+        setShowPremiumModal(false);
+
+        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = setInterval(() => {
+          setCountdown((prev) => {
+            if (prev <= 1) {
+              clearInterval(countdownIntervalRef.current!);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      } else {
+        alert('Error: ' + (data.error || 'QRIS tidak ditemukan'));
+      }
+    } catch (err: any) {
+      console.error('Payment error:', err);
+      alert('Terjadi kesalahan: ' + err.message);
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const tutupPaymentModal = () => {
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    setShowPaymentModal(false);
+    setQrisData(null);
+    setPaymentId(null);
+    setCountdown(300);
+  };
+
+  const formatCountdown = (seconds: number) => {
+    const mins = String(Math.floor(seconds / 60)).padStart(2, '0');
+    const secs = String(seconds % 60).padStart(2, '0');
+    return `${mins}:${secs}`;
   };
 
   // ===== WARNA DINAMIS =====
@@ -343,8 +441,13 @@ export default function ChronosPomodoro() {
       <style jsx global>{`
         @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
         @keyframes slideUp { 0% { opacity: 0; transform: translateY(20px) scale(0.95); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes dots { 0%, 20% { content: '.'; } 40% { content: '..'; } 60% { content: '...'; } }
         .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
         .animate-slide-up { animation: slideUp 0.3s ease-out forwards; }
+        .loading-dots::after {
+          content: '';
+          animation: dots 1.2s steps(3, end) infinite;
+        }
       `}</style>
 
       <header className="flex-shrink-0 flex justify-between items-center px-6 py-3">
@@ -370,7 +473,8 @@ export default function ChronosPomodoro() {
                   <div id="youtube-player-container" className="w-full h-full"><div id="youtube-player" className="w-full h-full"></div></div>
                 </div>
                 <a href="https://www.youtube.com/watch?v=OUnk5RpRKzA" target="_blank" rel="noopener" className={`text-[9px] flex items-center gap-1 justify-center mt-1 transition-colors ${mutedText} hover:text-[#ff0000]`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186..."/></svg> Buka di YouTube
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                  Buka di YouTube
                 </a>
               </div>
               <div className={`text-center text-[10px] ${mutedText} border-t border-[#30363d] pt-2`}>
@@ -468,9 +572,9 @@ export default function ChronosPomodoro() {
         <span>©2026 Chronos</span><span className="mx-2">-</span><a href="https://jbtech.biz.id" target="_blank" rel="noopener" className="hover:underline text-[#0366d6]">jbtech.biz.id</a><span className="ml-2">All rights reserved.</span>
       </footer>
 
-      {/* ===== MODAL VIP (FINAL) ===== */}
+      {/* ===== MODAL VIP ===== */}
       {showPremiumModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => { setShowPremiumModal(false); setTimerState('idle'); setCurrentTask(''); resetTimer(currentMode); }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) { setShowPremiumModal(false); setTimerState('idle'); setCurrentTask(''); resetTimer(currentMode); } }}>
           <div className={`w-full max-w-md mx-4 p-8 rounded-2xl shadow-2xl animate-slide-up ${theme === 'dark' ? 'bg-[#161b22] border border-[#30363d]' : 'bg-white border border-gray-200'}`} onClick={(e) => e.stopPropagation()}>
             <div className="text-center mb-6">
               <div className={`text-2xl font-bold ${theme === 'dark' ? 'text-[#e6edf3]' : 'text-black'}`}>Paket VIP</div>
@@ -486,13 +590,53 @@ export default function ChronosPomodoro() {
               <div className={`text-3xl font-bold text-[#e6edf3]`}>Rp 10.000</div>
               <div className={`text-xs mt-0.5 ${mutedText}`}>/ bulan · berlangganan hingga dibatalkan</div>
             </div>
-            <button onClick={() => { setShowPremiumModal(false); setTimerState('idle'); setCurrentTask(''); resetTimer(currentMode); window.location.href = '/profile'; }} className="w-full mt-6 py-3 rounded-full font-bold text-sm tracking-wide transition-all bg-[#0366d6] text-white border border-[#0366d6] hover:bg-[#0355b0] active:scale-[0.98]">
-              Aktifkan VIP
+
+            <button
+              onClick={handleBayarVip}
+              disabled={paymentLoading}
+              className={`w-full mt-6 py-3 rounded-full font-bold text-sm tracking-wide transition-all ${
+                paymentLoading
+                  ? 'bg-gray-500 text-white cursor-not-allowed'
+                  : 'bg-[#0366d6] text-white border border-[#0366d6] hover:bg-[#0355b0] active:scale-[0.98]'
+              }`}
+            >
+              {paymentLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Memproses...
+                </span>
+              ) : (
+                '💳 Aktifkan VIP (Rp 10.000)'
+              )}
             </button>
-            <button onClick={() => { setShowPremiumModal(false); setIsFocusMode(false); setTimerState('idle'); setCurrentTask(''); resetTimer(currentMode); }} className={`w-full mt-3 py-2 rounded-full text-xs tracking-wide transition-all border ${theme === 'dark' ? 'text-[#e6edf3]/60 border-[#30363d] hover:text-white hover:border-white/30' : 'text-black/60 border-black/20 hover:text-black hover:border-black/50'}`}>
+
+            <button
+              onClick={() => {
+                setShowPremiumModal(false);
+                setIsFocusMode(false);
+                setTimerState('idle');
+                setCurrentTask('');
+                resetTimer(currentMode);
+              }}
+              className={`w-full mt-3 py-2 rounded-full text-xs tracking-wide transition-all border ${theme === 'dark' ? 'text-[#e6edf3]/60 border-[#30363d] hover:text-white hover:border-white/30' : 'text-black/60 border-black/20 hover:text-black hover:border-black/50'}`}
+            >
               Lewati & lanjutkan (dengan iklan)
             </button>
-            <button onClick={() => { setShowPremiumModal(false); setTimerState('idle'); setCurrentTask(''); resetTimer(currentMode); }} className="absolute top-4 right-4 text-2xl text-white/40 hover:text-white">✕</button>
+
+            <button
+              onClick={() => {
+                setShowPremiumModal(false);
+                setTimerState('idle');
+                setCurrentTask('');
+                resetTimer(currentMode);
+              }}
+              className="absolute top-4 right-4 text-2xl text-white/40 hover:text-white"
+            >
+              ✕
+            </button>
           </div>
         </div>
       )}
@@ -505,15 +649,100 @@ export default function ChronosPomodoro() {
               <div className={`text-2xl font-bold ${theme === 'dark' ? 'text-[#e6edf3]' : 'text-black'}`}>Login</div>
               <div className={`text-sm mt-1 ${mutedText}`}>Masuk dengan akun Google</div>
             </div>
-            <button onClick={handleLoginWithGoogle} className="w-full flex items-center justify-center gap-3 py-3 rounded-full font-bold text-sm tracking-wide transition-all bg-white text-gray-800 border border-gray-300 hover:bg-gray-100 active:scale-[0.98]">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-              Login dengan Google
+            <button
+              onClick={handleLoginWithGoogle}
+              disabled={loginLoading}
+              className={`w-full flex items-center justify-center gap-3 py-3 rounded-full font-bold text-sm tracking-wide transition-all ${
+                loginLoading
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-white text-gray-800 border border-gray-300 hover:bg-gray-100 active:scale-[0.98]'
+              }`}
+            >
+              {loginLoading ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Memproses...
+                </span>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                  </svg>
+                  Login dengan Google
+                </>
+              )}
             </button>
             <button onClick={() => setShowLoginModal(false)} className={`w-full mt-3 py-2 rounded-full text-xs tracking-wide transition-all border ${theme === 'dark' ? 'text-[#e6edf3]/60 border-[#30363d] hover:text-white hover:border-white/30' : 'text-black/60 border-black/20 hover:text-black hover:border-black/50'}`}>Tutup</button>
             <button onClick={() => setShowLoginModal(false)} className="absolute top-4 right-4 text-2xl text-white/40 hover:text-white">✕</button>
           </div>
         </div>
       )}
+
+      {/* ===== MODAL QRIS ===== */}
+      {showPaymentModal && qrisData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={tutupPaymentModal}>
+          <div className={`w-full max-w-sm mx-4 p-6 rounded-2xl shadow-2xl relative ${theme === 'dark' ? 'bg-[#161b22] border border-[#30363d]' : 'bg-white border border-gray-200'}`} onClick={(e) => e.stopPropagation()}>
+            <button onClick={tutupPaymentModal} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/20 hover:bg-black/40 flex items-center justify-center text-white">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <div className="text-center mb-4">
+              <div className="w-16 h-16 mx-auto bg-green-500/20 rounded-full flex items-center justify-center text-3xl mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="3" width="20" height="18" rx="2" ry="2" />
+                  <line x1="8" y1="21" x2="16" y2="21" />
+                  <line x1="12" y1="17" x2="12" y2="21" />
+                </svg>
+              </div>
+              <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-[#e6edf3]' : 'text-black'}`}>Bayar VIP</h3>
+              <p className={`text-sm ${mutedText}`}>Scan QRIS untuk membayar Rp 10.000</p>
+            </div>
+            <div className="flex justify-center mb-4">
+              <div className="bg-white p-4 rounded-xl shadow-inner">
+                <div id="qris-container" className="w-48 h-48 flex items-center justify-center">
+                  <canvas id="qrisCanvas" width="180" height="180"></canvas>
+                </div>
+              </div>
+            </div>
+            <div className="text-center mb-3">
+              <span className={`text-sm font-bold ${countdown < 60 ? 'text-red-500' : 'text-yellow-500'}`}>
+                ⏳ Sisa waktu: {formatCountdown(countdown)}
+              </span>
+            </div>
+            <p className={`text-center text-xs ${mutedText}`}>ID: <span className="font-mono">{paymentId}</span></p>
+            <button onClick={tutupPaymentModal} className={`w-full mt-4 py-2.5 rounded-lg font-bold text-sm transition ${theme === 'dark' ? 'bg-[#30363d] hover:bg-[#484f58] text-[#e6edf3]' : 'bg-gray-200 hover:bg-gray-300 text-black'}`}>Tutup</button>
+            <p className={`text-center text-[10px] mt-2 ${mutedText}`}>Pembayaran akan otomatis terverifikasi. Refresh halaman jika perlu.</p>
+          </div>
+        </div>
+      )}
+
+      {showPaymentModal && qrisData && (
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              setTimeout(() => {
+                const canvas = document.getElementById('qrisCanvas');
+                if (canvas && window.QRCode) {
+                  new QRCode(canvas, {
+                    text: ${JSON.stringify(qrisData)},
+                    width: 180,
+                    height: 180,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H,
+                  });
+                }
+              }, 200);
+            `,
+          }}
+        />
+      )}
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" />
     </div>
   );
 }
