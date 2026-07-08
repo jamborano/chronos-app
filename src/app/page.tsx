@@ -248,7 +248,12 @@ export default function ChronosPomodoro() {
   };
 
   const handleTimer = () => {
-    if (isFocusMode && !isVipMode) { setShowPremiumModal(true); return; }
+    // Jika mode VIP UI aktif namun user belum VIP, tampilkan modal
+    if (isFocusMode && !isVipMode) {
+      setShowPremiumModal(true);
+      return;
+    }
+    // Jalankan timer
     if (timerState === 'idle') setTimerState('running');
     else if (timerState === 'running') setTimerState('paused');
     else if (timerState === 'paused') setTimerState('running');
@@ -290,7 +295,7 @@ export default function ChronosPomodoro() {
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
   const toggleFocusMode = () => {
-    if (!isVipMode) { setShowPremiumModal(true); return; }
+    // Bebas toggle, tanpa syarat VIP – preview mode gratis
     setIsFocusMode(!isFocusMode);
   };
 
