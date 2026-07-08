@@ -39,3 +39,9 @@ cp .env.local.example .env.local
 
 # Jalankan development server
 npm run dev
+
+📄 Lisensi
+© 2026 Chronos. All rights reserved.
+
+👨‍💻 Developer
+Jamborano Tech Studio
