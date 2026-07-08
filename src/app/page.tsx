@@ -571,9 +571,18 @@ export default function ChronosPomodoro() {
               <div className={`text-3xl font-bold text-[#e6edf3]`}>Rp 10.000</div>
               <div className={`text-xs mt-0.5 ${mutedText}`}>/ bulan · berlangganan hingga dibatalkan</div>
             </div>
-            <button onClick={() => { alert('🎉 UI VIP diaktifkan! Silakan pergi ke halaman Profil untuk mengaktifkan akses timer.'); setShowPremiumModal(false); setIsFocusMode(true); setTimerState('idle'); resetTimer(currentMode); }} className="w-full mt-6 py-3 rounded-full font-bold text-sm tracking-wide transition-all bg-[#0366d6] text-white border border-[#0366d6] hover:bg-[#0355b0] active:scale-[0.98]">
+
+            {/* 🔥 TOMBOL AKTIFKAN VIP → LANGSUNG KE HALAMAN PROFIL */}
+            <button 
+              onClick={() => { 
+                setShowPremiumModal(false); 
+                window.location.href = '/profile'; 
+              }} 
+              className="w-full mt-6 py-3 rounded-full font-bold text-sm tracking-wide transition-all bg-[#0366d6] text-white border border-[#0366d6] hover:bg-[#0355b0] active:scale-[0.98]"
+            >
               Aktifkan VIP
             </button>
+
             <button onClick={() => { setShowPremiumModal(false); setTimerState('idle'); setCurrentTask(''); resetTimer(currentMode); }} className={`w-full mt-3 py-2 rounded-full text-xs tracking-wide transition-all border ${theme === 'dark' ? 'text-[#e6edf3]/60 border-[#30363d] hover:text-white hover:border-white/30' : 'text-black/60 border-black/20 hover:text-black hover:border-black/50'}`}>
               Lewati & lanjutkan (dengan iklan)
             </button>
