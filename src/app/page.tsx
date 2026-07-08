@@ -576,6 +576,9 @@ export default function ChronosPomodoro() {
             <button 
               onClick={() => { 
                 setShowPremiumModal(false); 
+                setTimerState('idle'); 
+                setCurrentTask(''); 
+                resetTimer(currentMode);
                 window.location.href = '/profile'; 
               }} 
               className="w-full mt-6 py-3 rounded-full font-bold text-sm tracking-wide transition-all bg-[#0366d6] text-white border border-[#0366d6] hover:bg-[#0355b0] active:scale-[0.98]"
@@ -583,10 +586,31 @@ export default function ChronosPomodoro() {
               Aktifkan VIP
             </button>
 
-            <button onClick={() => { setShowPremiumModal(false); setTimerState('idle'); setCurrentTask(''); resetTimer(currentMode); }} className={`w-full mt-3 py-2 rounded-full text-xs tracking-wide transition-all border ${theme === 'dark' ? 'text-[#e6edf3]/60 border-[#30363d] hover:text-white hover:border-white/30' : 'text-black/60 border-black/20 hover:text-black hover:border-black/50'}`}>
+            {/* 🔥 TOMBOL LEWATI → KEMBALI KE HOME/FREE MODE */}
+            <button 
+              onClick={() => { 
+                setShowPremiumModal(false); 
+                setIsFocusMode(false);  // 🔥 Keluar dari preview VIP
+                setTimerState('idle'); 
+                setCurrentTask(''); 
+                resetTimer(currentMode); 
+              }} 
+              className={`w-full mt-3 py-2 rounded-full text-xs tracking-wide transition-all border ${theme === 'dark' ? 'text-[#e6edf3]/60 border-[#30363d] hover:text-white hover:border-white/30' : 'text-black/60 border-black/20 hover:text-black hover:border-black/50'}`}
+            >
               Lewati & lanjutkan (dengan iklan)
             </button>
-            <button onClick={() => { setShowPremiumModal(false); setTimerState('idle'); setCurrentTask(''); resetTimer(currentMode); }} className="absolute top-4 right-4 text-2xl text-white/40 hover:text-white">✕</button>
+
+            <button 
+              onClick={() => { 
+                setShowPremiumModal(false); 
+                setTimerState('idle'); 
+                setCurrentTask(''); 
+                resetTimer(currentMode); 
+              }} 
+              className="absolute top-4 right-4 text-2xl text-white/40 hover:text-white"
+            >
+              ✕
+            </button>
           </div>
         </div>
       )}
