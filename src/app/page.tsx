@@ -24,7 +24,7 @@ export default function ChronosPomodoro() {
   const [user, setUser] = useState<any>(null);
   const [profileData, setProfileData] = useState<any>(null);
   const [showProfilePopup, setShowProfilePopup] = useState(false);
-  const [isLoggingIn, setIsLoggingIn] = useState(false); // 🔥 loading login
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
 
@@ -83,41 +83,63 @@ export default function ChronosPomodoro() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // ===== YOUTUBE PLAYER =====
+  // ===== YOUTUBE PLAYER (PERBAIKAN) =====
   const initPlayer = () => {
     if (typeof window === 'undefined') return;
     const container = document.getElementById('youtube-player-container');
-    if (!container || playerRef.current) return;
-    try {
-      const newPlayer = new (window as any).YT.Player('youtube-player', {
-        videoId: 'OUnk5RpRKzA',
-        playerVars: { autoplay: 1, mute: 1, controls: 1, rel: 0, modestbranding: 0, playsinline: 1 },
-        events: {
-          onReady: (event: any) => {
-            playerRef.current = event.target;
-            setTimeout(() => {
-              if (playerRef.current) {
-                playerRef.current.unMute();
-                playerRef.current.playVideo();
-              }
-            }, 5000);
-          },
-          onError: (err: any) => {
-            console.warn('YouTube error:', err);
-            const container = document.getElementById('youtube-player-container');
-            if (container) {
-              container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=0&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
-            }
-          },
-        },
-      });
-    } catch (e) {
-      console.warn('Gagal init YouTube:', e);
-      const container = document.getElementById('youtube-player-container');
-      if (container) {
-        container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=0&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
-      }
+    if (!container) {
+      console.warn('Container youtube-player-container not found');
+      return;
     }
+    if (playerRef.current) return;
+
+    // Tunggu hingga elemen youtube-player benar-benar ada di DOM
+    const checkPlayerElement = () => {
+      const playerElement = document.getElementById('youtube-player');
+      if (!playerElement) {
+        setTimeout(checkPlayerElement, 100);
+        return;
+      }
+      try {
+        const newPlayer = new (window as any).YT.Player('youtube-player', {
+          videoId: 'OUnk5RpRKzA',
+          playerVars: {
+            autoplay: 1,
+            mute: 1,
+            controls: 1,
+            rel: 0,
+            modestbranding: 0,
+            playsinline: 1,
+          },
+          events: {
+            onReady: (event: any) => {
+              playerRef.current = event.target;
+              setTimeout(() => {
+                if (playerRef.current) {
+                  playerRef.current.unMute();
+                  playerRef.current.playVideo();
+                }
+              }, 5000);
+            },
+            onError: (err: any) => {
+              console.warn('YouTube error:', err);
+              const container = document.getElementById('youtube-player-container');
+              if (container) {
+                container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=0&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
+              }
+            },
+          },
+        });
+      } catch (e) {
+        console.warn('Gagal init YouTube:', e);
+        const container = document.getElementById('youtube-player-container');
+        if (container) {
+          container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=0&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
+        }
+      }
+    };
+
+    checkPlayerElement();
   };
 
   useEffect(() => {
@@ -277,28 +299,21 @@ export default function ChronosPomodoro() {
     setIsFocusMode(!isFocusMode);
   };
 
-  // ===== 🔥 LOGIN dengan LOADING DOTS =====
+  // ===== LOGIN =====
   const handleLoginWithGoogle = async () => {
-  setIsLoggingIn(true);
-  try {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`, // tambahkan /auth/callback
-      },
-    });
+    setIsLoggingIn(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin },
+      });
       if (error) {
         console.error('Login error:', error);
         alert('Gagal login, coba lagi.');
         setIsLoggingIn(false);
       } else {
         setShowLoginModal(false);
-        // Redirect sudah ditangani oleh Supabase, loading akan tetap muncul sampai redirect
-        // Biarkan isLoggingIn true sampai redirect terjadi
-        // Tapi kita set false setelah 5 detik sebagai fallback
-        setTimeout(() => {
-          setIsLoggingIn(false);
-        }, 5000);
+        setTimeout(() => setIsLoggingIn(false), 5000);
       }
     } catch (err) {
       console.error(err);
@@ -314,7 +329,7 @@ export default function ChronosPomodoro() {
     setShowProfilePopup(false);
   };
 
-  // ===== FUNGSI BAYAR VIP =====
+  // ===== BAYAR VIP =====
   const handleBayarVip = async () => {
     if (!user) {
       setShowLoginModal(true);
@@ -468,10 +483,15 @@ export default function ChronosPomodoro() {
               <div className="text-center">
                 <p className={`text-[10px] font-bold tracking-wider uppercase ${textColor}`}>🎵 Putar Musik</p>
                 <div className="aspect-video w-full rounded-xl overflow-hidden border border-[#30363d] mt-1 bg-black">
-                  <div id="youtube-player-container" className="w-full h-full"><div id="youtube-player" className="w-full h-full"></div></div>
+                  <div id="youtube-player-container" className="w-full h-full">
+                    <div id="youtube-player" className="w-full h-full"></div>
+                  </div>
                 </div>
                 <a href="https://www.youtube.com/watch?v=OUnk5RpRKzA" target="_blank" rel="noopener" className={`text-[9px] flex items-center gap-1 justify-center mt-1 transition-colors ${mutedText} hover:text-[#ff0000]`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186..."/></svg> Buka di YouTube
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                  </svg>
+                  Buka di YouTube
                 </a>
               </div>
               <div className={`text-center text-[10px] ${mutedText} border-t border-[#30363d] pt-2`}>
@@ -552,7 +572,10 @@ export default function ChronosPomodoro() {
                   <iframe className="w-full h-full" src="https://www.youtube.com/embed/hnGt0Jb2H2g?autoplay=0&mute=1&controls=1&modestbranding=0&rel=0" title="Rainy Day Cafe" frameBorder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
                 </div>
                 <a href="https://www.youtube.com/watch?v=hnGt0Jb2H2g" target="_blank" rel="noopener" className={`text-[9px] flex items-center gap-1 justify-center mt-1 transition-colors ${mutedText} hover:text-[#ff0000]`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186..."/></svg> Buka di YouTube
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                  </svg>
+                  Buka di YouTube
                 </a>
               </div>
               <div className={`text-center text-[11px] ${mutedText} border-t border-[#30363d] pt-2 italic`}>
@@ -651,7 +674,7 @@ export default function ChronosPomodoro() {
         </div>
       )}
 
-      {/* ===== MODAL LOGIN dengan LOADING DOTS ===== */}
+      {/* ===== MODAL LOGIN ===== */}
       {showLoginModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => { if (!isLoggingIn) setShowLoginModal(false); }}>
           <div className={`w-full max-w-sm mx-4 p-8 rounded-2xl shadow-2xl animate-slide-up ${theme === 'dark' ? 'bg-[#161b22] border border-[#30363d]' : 'bg-white border border-gray-200'}`} onClick={(e) => e.stopPropagation()}>
@@ -660,7 +683,6 @@ export default function ChronosPomodoro() {
               <div className={`text-sm mt-1 ${mutedText}`}>Masuk dengan akun Google</div>
             </div>
 
-            {/* 🔥 BUTTON LOGIN DENGAN LOADING */}
             <button
               onClick={handleLoginWithGoogle}
               disabled={isLoggingIn}
