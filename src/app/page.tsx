@@ -93,12 +93,42 @@ export default function ChronosPomodoro() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // ===== YOUTUBE PLAYER =====
+  // ===== YOUTUBE PLAYER (FIX AUTOPLAY) =====
+  const fallbackIframe = () => {
+    const container = document.getElementById('youtube-player-container');
+    if (container) {
+      container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=1&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
+    }
+  };
+
   const initPlayer = () => {
     if (typeof window === 'undefined') return;
     const container = document.getElementById('youtube-player-container');
-    if (!container || playerRef.current) return;
+    if (!container) {
+      console.warn('Container youtube-player-container not found');
+      return;
+    }
+    if (playerRef.current) {
+      console.log('Player already initialized');
+      return;
+    }
 
+    // 🔥 Pastikan elemen youtube-player ada
+    const playerElement = document.getElementById('youtube-player');
+    if (!playerElement) {
+      console.warn('Element #youtube-player not found, retrying...');
+      setTimeout(initPlayer, 300);
+      return;
+    }
+
+    // Pastikan API YT siap
+    if (typeof (window as any).YT === 'undefined' || typeof (window as any).YT.Player === 'undefined') {
+      console.warn('YT API not ready, retrying...');
+      setTimeout(initPlayer, 300);
+      return;
+    }
+
+    console.log('🎬 Initializing YouTube Player...');
     try {
       const newPlayer = new (window as any).YT.Player('youtube-player', {
         videoId: 'OUnk5RpRKzA',
@@ -112,7 +142,9 @@ export default function ChronosPomodoro() {
         },
         events: {
           onReady: (event: any) => {
+            console.log('✅ YouTube Player ready');
             playerRef.current = event.target;
+            // 🔥 Coba unmute setelah 2 detik
             setTimeout(() => {
               if (playerRef.current) {
                 try {
@@ -121,30 +153,28 @@ export default function ChronosPomodoro() {
                   setIsMuted(false);
                   const btn = document.getElementById('unmute-btn');
                   if (btn) btn.style.display = 'none';
+                  console.log('🔊 Unmute success');
                 } catch (e) {
-                  console.log('Unmute gagal, tampilkan tombol');
+                  console.log('Unmute failed (browser policy), showing unmute button');
                   const btn = document.getElementById('unmute-btn');
                   if (btn) btn.style.display = 'flex';
                 }
               }
             }, 2000);
           },
-          onError: () => {
-            const container = document.getElementById('youtube-player-container');
-            if (container) {
-              container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=1&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
-            }
+          onError: (err: any) => {
+            console.warn('YouTube error:', err);
+            fallbackIframe();
           },
         },
       });
     } catch (e) {
-      const container = document.getElementById('youtube-player-container');
-      if (container) {
-        container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=1&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
-      }
+      console.warn('Failed to init YouTube Player, fallback iframe', e);
+      fallbackIframe();
     }
   };
 
+  // ===== UNMUTE USER-INITIATED =====
   const handleUnmute = () => {
     if (playerRef.current) {
       playerRef.current.unMute();
@@ -156,23 +186,31 @@ export default function ChronosPomodoro() {
   };
 
   useEffect(() => {
-    if (typeof window === 'undefined' || apiLoadedRef.current) return;
-    apiLoadedRef.current = true;
+    if (typeof window === 'undefined') return;
+
+    // Load YouTube API script
+    if (!apiLoadedRef.current) {
+      apiLoadedRef.current = true;
+      if (!document.getElementById('youtube-api')) {
+        const tag = document.createElement('script');
+        tag.id = 'youtube-api';
+        tag.src = 'https://www.youtube.com/iframe_api';
+        document.head.appendChild(tag);
+      }
+      // Override callback
+      const originalCallback = (window as any).onYouTubeIframeAPIReady;
+      (window as any).onYouTubeIframeAPIReady = () => {
+        if (originalCallback) originalCallback();
+        // Tunggu sebentar agar DOM player siap
+        setTimeout(initPlayer, 500);
+      };
+    }
+
+    // Jika API sudah ada, langsung init
     if ((window as any).YT && (window as any).YT.Player) {
-      initPlayer();
-      return;
+      setTimeout(initPlayer, 500);
     }
-    const originalCallback = (window as any).onYouTubeIframeAPIReady;
-    (window as any).onYouTubeIframeAPIReady = () => {
-      if (originalCallback) originalCallback();
-      initPlayer();
-    };
-    if (!document.getElementById('youtube-api')) {
-      const tag = document.createElement('script');
-      tag.id = 'youtube-api';
-      tag.src = 'https://www.youtube.com/iframe_api';
-      document.head.appendChild(tag);
-    }
+
     return () => {
       if ((window as any).YT && playerRef.current) {
         try { playerRef.current.destroy(); } catch (e) {}
@@ -348,7 +386,7 @@ export default function ChronosPomodoro() {
     setIsFocusMode(false);
   };
 
-  // ===== BAYAR VIP (HARGA 29.000) =====
+  // ===== BAYAR VIP =====
   const handleBayarVip = async () => {
     if (!user) {
       setShowLoginModal(true);
@@ -364,7 +402,7 @@ export default function ChronosPomodoro() {
           userId: user.id,
           email: user.email,
           name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Pengguna',
-          amount: 29000, // 🔥 Harga diubah jadi 29.000
+          amount: 29000,
         }),
       });
 
@@ -624,7 +662,6 @@ export default function ChronosPomodoro() {
                   <span>⏱️ 10.000+ sesi</span>
                   <span>🔒 Privasi terjaga</span>
                 </div>
-                {/* 🔥 Harga diubah ke 29.000 */}
                 <p className={`text-[10px] mt-1 ${mutedText}`}>💳 <span className="font-bold text-[#0366d6]">Rp 29.000</span>/bulan – Bayar sekali, fokus selamanya.</p>
               </div>
             )}
@@ -661,7 +698,7 @@ export default function ChronosPomodoro() {
         <span className="ml-2">All rights reserved.</span>
       </footer>
 
-      {/* ===== MODAL VIP (harga 29.000) ===== */}
+      {/* ===== MODAL VIP ===== */}
       {showPremiumModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
@@ -689,7 +726,7 @@ export default function ChronosPomodoro() {
               <li className="flex items-center gap-3"><span className="text-[#0366d6]">✓</span> Input Tugas Aktif & Simpan Data</li>
             </ul>
             <div className="mt-6 p-4 rounded-xl border border-[#0366d6]/30 bg-[#0366d6]/5 text-center">
-              <div className={`text-3xl font-bold text-[#e6edf3]`}>Rp 29.000</div> {/* 🔥 Harga diubah */}
+              <div className={`text-3xl font-bold text-[#e6edf3]`}>Rp 29.000</div>
               <div className={`text-xs mt-0.5 ${mutedText}`}>/ bulan · berlangganan hingga dibatalkan</div>
             </div>
 
