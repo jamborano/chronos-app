@@ -8,13 +8,10 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   display: "swap",
 });
 
-// ============================================================
-//  METADATA SEO – OPTIMAL UNTUK POMODORO & CHRONOS
-//  Ganti URL "https://chronos.vercel.app" dengan domain Anda
-// ============================================================
+// ===== METADATA SEO OPTIMIZED =====
 const BASE_URL = process.env.VERCEL_URL 
   ? `https://${process.env.VERCEL_URL}` 
-  : "https://chronos.vercel.app";
+  : "https://chronos.my.id";
 
 export const metadata: Metadata = {
   title: {
@@ -24,30 +21,13 @@ export const metadata: Metadata = {
   description:
     "Chronos Pomodoro Timer adalah aplikasi timer fokus berbasis teknik Pomodoro untuk meningkatkan produktivitas. Dilengkapi alarm premium, statistik harian, dan mode VIP bebas iklan. Cocok untuk work from home, studi, dan deep work. Mulai fokus sekarang!",
   keywords: [
-    // Short
-    "pomodoro",
-    "chronos",
-    "timer",
-    "fokus",
-    "produktivitas",
-    // Medium
-    "pomodoro timer",
-    "chronos timer",
-    "timer pomodoro",
-    "aplikasi pomodoro",
-    "teknik pomodoro",
-    "alarm pomodoro",
-    "timer fokus",
-    "pomodoro online",
-    // Long-tail
-    "chronos pomodoro timer app",
-    "pomodoro timer online gratis",
-    "aplikasi timer fokus produktivitas",
-    "teknik pomodoro untuk work from home",
-    "timer konsentrasi deep work",
-    "pomodoro dengan alarm premium",
-    "statistik harian pomodoro",
-    "mode vip tanpa iklan pomodoro",
+    "pomodoro", "chronos", "timer", "fokus", "produktivitas",
+    "pomodoro timer", "chronos timer", "timer pomodoro", "aplikasi pomodoro",
+    "teknik pomodoro", "alarm pomodoro", "timer fokus", "pomodoro online",
+    "chronos pomodoro timer app", "pomodoro timer online gratis",
+    "aplikasi timer fokus produktivitas", "teknik pomodoro untuk work from home",
+    "timer konsentrasi deep work", "pomodoro dengan alarm premium",
+    "statistik harian pomodoro", "mode vip tanpa iklan pomodoro",
     "meningkatkan produktivitas dengan pomodoro",
   ],
   authors: [{ name: "Chronos Team", url: "https://jbtech.biz.id" }],
@@ -72,7 +52,7 @@ export const metadata: Metadata = {
     siteName: "Chronos Pomodoro Timer",
     images: [
       {
-        url: `${BASE_URL}/og`,  // 🔥 Menggunakan endpoint /og
+        url: `${BASE_URL}/og`,
         width: 1200,
         height: 630,
         alt: "Chronos Pomodoro Timer - Fokus & Produktivitas",
@@ -86,7 +66,7 @@ export const metadata: Metadata = {
     title: "Chronos Pomodoro Timer – Fokus & Produktivitas Maksimal",
     description:
       "Aplikasi timer Pomodoro terbaik untuk meningkatkan fokus dan produktivitas. Alarm premium, statistik harian, mode VIP bebas iklan.",
-    images: [`${BASE_URL}/og`], // 🔥 Sama dengan OG
+    images: [`${BASE_URL}/og`],
     creator: "@chronos_app",
     site: "@chronos_app",
   },
@@ -102,8 +82,9 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
+  // 🔥 Perbaiki meta tag deprecated
   other: {
-    "apple-mobile-web-app-capable": "yes",
+    "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "black-translucent",
   },
   viewport: {
@@ -130,9 +111,6 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/manifest.json" />
-        {/* Tambahan untuk debug (opsional) */}
-        <meta property="og:image:width" content="1200" />
-        <meta property="og:image:height" content="630" />
       </head>
       <body className={plusJakartaSans.className}>{children}</body>
     </html>

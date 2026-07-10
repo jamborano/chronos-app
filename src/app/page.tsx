@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -40,6 +41,7 @@ export default function ChronosPomodoro() {
   // ===== REF YOUTUBE =====
   const playerRef = useRef<any>(null);
   const apiLoadedRef = useRef(false);
+  const [isMuted, setIsMuted] = useState(true);
 
   // ===== CEK SESSION =====
   useEffect(() => {
@@ -95,51 +97,47 @@ export default function ChronosPomodoro() {
   const initPlayer = () => {
     if (typeof window === 'undefined') return;
     const container = document.getElementById('youtube-player-container');
-    if (!container) return;
-    if (playerRef.current) return;
-    const checkPlayerElement = () => {
-      const playerElement = document.getElementById('youtube-player');
-      if (!playerElement) {
-        setTimeout(checkPlayerElement, 100);
-        return;
-      }
-      try {
-        const newPlayer = new (window as any).YT.Player('youtube-player', {
-          videoId: 'OUnk5RpRKzA',
-          playerVars: {
-            autoplay: 1,
-            mute: 1,
-            controls: 1,
-            rel: 0,
-            modestbranding: 0,
-            playsinline: 1,
+    if (!container || playerRef.current) return;
+
+    try {
+      const newPlayer = new (window as any).YT.Player('youtube-player', {
+        videoId: 'OUnk5RpRKzA',
+        playerVars: {
+          autoplay: 1,
+          mute: 1,
+          controls: 0,
+          rel: 0,
+          modestbranding: 1,
+          playsinline: 1,
+        },
+        events: {
+          onReady: (event: any) => {
+            playerRef.current = event.target;
+            // 🔥 Tidak unmute otomatis, biarkan user klik tombol suara
           },
-          events: {
-            onReady: (event: any) => {
-              playerRef.current = event.target;
-              setTimeout(() => {
-                if (playerRef.current) {
-                  playerRef.current.unMute();
-                  playerRef.current.playVideo();
-                }
-              }, 5000);
-            },
-            onError: () => {
-              const container = document.getElementById('youtube-player-container');
-              if (container) {
-                container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=0&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
-              }
-            },
+          onError: () => {
+            const container = document.getElementById('youtube-player-container');
+            if (container) {
+              container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=1&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
+            }
           },
-        });
-      } catch (e) {
-        const container = document.getElementById('youtube-player-container');
-        if (container) {
-          container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=0&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
-        }
+        },
+      });
+    } catch (e) {
+      const container = document.getElementById('youtube-player-container');
+      if (container) {
+        container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=1&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
       }
-    };
-    checkPlayerElement();
+    }
+  };
+
+  // ===== UNMUTE YOUTUBE (user-initiated) =====
+  const handleUnmute = () => {
+    if (playerRef.current) {
+      playerRef.current.unMute();
+      playerRef.current.playVideo();
+      setIsMuted(false);
+    }
   };
 
   useEffect(() => {
@@ -296,7 +294,7 @@ export default function ChronosPomodoro() {
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
 
-  // ===== 🔥 TOMBOL VIP =====
+  // ===== TOMBOL VIP =====
   const handleVipToggle = () => {
     if (user && isVipMode) {
       setIsFocusMode(!isFocusMode);
@@ -381,6 +379,11 @@ export default function ChronosPomodoro() {
             return prev - 1;
           });
         }, 1000);
+      } else if (data.redirectUrl) {
+        // Fallback: redirect ke halaman Midtrans
+        window.open(data.redirectUrl, '_blank');
+        alert('Pembayaran akan diproses di halaman Midtrans.');
+        setShowPremiumModal(false);
       } else {
         alert('Error: ' + (data.error || 'QRIS tidak ditemukan'));
       }
@@ -490,7 +493,6 @@ export default function ChronosPomodoro() {
           >
             {isFocusMode && isUserVip ? 'FREE' : 'VIP'}
           </button>
-          {/* 🔥 TOMBOL HOW TO USE */}
           <button
             onClick={() => setShowHowToModal(true)}
             className={`rounded-full transition-all hover:scale-105 border p-2 ${
@@ -526,14 +528,26 @@ export default function ChronosPomodoro() {
             <div className="hidden lg:block lg:col-span-3 space-y-3 lg:mt-12">
               <div className="text-center">
                 <p className={`text-[10px] font-bold tracking-wider uppercase ${textColor}`}>🎵 Putar Musik</p>
-                <div className="aspect-video w-full rounded-xl overflow-hidden border border-[#30363d] mt-1 bg-black">
+                <div className="aspect-video w-full rounded-xl overflow-hidden border border-[#30363d] mt-1 bg-black relative">
                   <div id="youtube-player-container" className="w-full h-full">
                     <div id="youtube-player" className="w-full h-full"></div>
                   </div>
+                  {isMuted && (
+                    <button
+                      onClick={handleUnmute}
+                      className="absolute inset-0 flex items-center justify-center bg-black/50 hover:bg-black/60 transition-colors"
+                    >
+                      <div className="bg-white/20 backdrop-blur-sm rounded-full p-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-8 h-8 text-white">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
+                        </svg>
+                      </div>
+                    </button>
+                  )}
                 </div>
                 <a href="https://www.youtube.com/watch?v=OUnk5RpRKzA" target="_blank" rel="noopener" className={`text-[9px] flex items-center gap-1 justify-center mt-1 transition-colors ${mutedText} hover:text-[#ff0000]`}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M23.498 6.186..."/>
+                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                   </svg>
                   Buka di YouTube
                 </a>
@@ -555,7 +569,6 @@ export default function ChronosPomodoro() {
               </div>
             )}
             <div className="w-full max-w-md mx-auto p-6 rounded-3xl shadow-2xl transition-all duration-500" style={getCardStyle()}>
-              {/* TAB MODE */}
               <div className="flex justify-between mb-4 text-[10px] md:text-xs tracking-[0.2em] font-bold">
                 {['POMODORO', 'ISTIRAHAT SINGKAT', 'ISTIRAHAT PANJANG'].map((label, idx) => {
                   const mode = idx === 0 ? 'pomodoro' : idx === 1 ? 'short' : 'long';
@@ -615,11 +628,11 @@ export default function ChronosPomodoro() {
               <div className="text-center">
                 <p className={`text-[10px] font-bold tracking-wider uppercase ${textColor}`}>☕ Putar Musik</p>
                 <div className="aspect-video w-full rounded-xl overflow-hidden border border-[#30363d] mt-1 bg-black">
-                  <iframe className="w-full h-full" src="https://www.youtube.com/embed/hnGt0Jb2H2g?autoplay=0&mute=1&controls=1&modestbranding=0&rel=0" title="Rainy Day Cafe" frameBorder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
+                  <iframe className="w-full h-full" src="https://www.youtube.com/embed/hnGt0Jb2H2g?autoplay=0&mute=1&controls=1&modestbranding=1&rel=0" title="Rainy Day Cafe" frameBorder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
                 </div>
                 <a href="https://www.youtube.com/watch?v=hnGt0Jb2H2g" target="_blank" rel="noopener" className={`text-[9px] flex items-center gap-1 justify-center mt-1 transition-colors ${mutedText} hover:text-[#ff0000]`}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M23.498 6.186..."/>
+                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                   </svg>
                   Buka di YouTube
                 </a>
@@ -636,7 +649,10 @@ export default function ChronosPomodoro() {
 
       {/* ===== FOOTER ===== */}
       <footer className={`flex-shrink-0 w-full text-center text-[10px] py-2 ${mutedText}`}>
-        <span>©2026 Chronos</span><span className="mx-2">-</span><a href="https://jbtech.biz.id" target="_blank" rel="noopener" className="hover:underline text-[#0366d6]">jbtech.biz.id</a><span className="ml-2">All rights reserved.</span>
+        <span>©2026 Chronos</span>
+        <span className="mx-2">-</span>
+        <Link href="https://jbtech.biz.id" target="_blank" className="hover:underline text-[#0366d6]">jbtech.biz.id</Link>
+        <span className="ml-2">All rights reserved.</span>
       </footer>
 
       {/* ===== MODAL VIP ===== */}
@@ -803,7 +819,7 @@ export default function ChronosPomodoro() {
         </div>
       )}
 
-      {/* ===== 🔥 MODAL HOW TO USE ===== */}
+      {/* ===== MODAL HOW TO USE ===== */}
       {showHowToModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in"
@@ -862,7 +878,7 @@ export default function ChronosPomodoro() {
                 <div className="w-8 h-8 rounded-full bg-[#0366d6]/20 text-[#0366d6] flex items-center justify-center flex-shrink-0 text-lg font-bold">5</div>
                 <div>
                   <p className="font-bold">Putar Musik</p>
-                  <p className={`text-xs ${mutedText}`}>Nikmati musik latar dari YouTube untuk menemani fokus Anda. Auto-play di mode FREE.</p>
+                  <p className={`text-xs ${mutedText}`}>Nikmati musik latar dari YouTube untuk menemani fokus Anda. Klik ikon suara untuk mengaktifkan audio.</p>
                 </div>
               </div>
             </div>

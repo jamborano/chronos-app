@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   BarChart,
   Bar,
@@ -24,7 +25,7 @@ export default function ReportPage() {
   });
   const [isLoading, setIsLoading] = useState(true);
 
-  // ===== PROTEKSI: HANYA VIP YANG BISA AKSES =====
+  // ===== PROTEKSI: HANYA VIP =====
   useEffect(() => {
     const vipStatus = localStorage.getItem('chronos_vip_status');
     if (!vipStatus) {
@@ -129,9 +130,8 @@ export default function ReportPage() {
     return `${hours} jam ${mins} menit`;
   };
 
-  // ===== FUNGSI KEMBALI KE TIMER =====
+  // ===== FUNGSI KEMBALI =====
   const goToTimer = () => {
-    // Pastikan mode VIP tetap aktif
     localStorage.setItem('chronos_vip_status', JSON.stringify({
       isVipMode: true,
       isFocusMode: true,

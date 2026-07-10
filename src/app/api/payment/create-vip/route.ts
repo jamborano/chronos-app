@@ -39,11 +39,10 @@ export async function POST(request: Request) {
     }
 
     // 3. 🔥 Order ID maksimal 50 karakter
-    //    Potong userId (UUID) menjadi 8 karakter, tambahkan timestamp
     const shortUserId = userId.replace(/-/g, '').slice(0, 8);
-    const orderId = `VIP-${shortUserId}-${Date.now()}`; // panjang ~25 karakter
+    const orderId = `VIP-${shortUserId}-${Date.now()}`;
 
-    // 4. Parameter transaksi (tanpa payment_methods, biar otomatis)
+    // 4. Parameter transaksi
     const parameter = {
       transaction_details: {
         order_id: orderId,
@@ -71,7 +70,7 @@ export async function POST(request: Request) {
     const transaction: any = await snap.createTransaction(parameter);
     console.log(`✅ Transaction created: ${transaction.transaction_id}`);
 
-    // 6. Ambil QRIS / GoPay dari response
+    // 6. Ambil QRIS
     let qrisString = '';
     if (transaction.actions && Array.isArray(transaction.actions)) {
       const qrisAction = transaction.actions.find(
@@ -110,7 +109,7 @@ export async function POST(request: Request) {
     }
 
     if (statusCode === 401 || errorMessage.toLowerCase().includes('unauthorized')) {
-      errorMessage = '🔑 Server Key Midtrans tidak valid. Pastikan Anda menggunakan key yang benar (Sandbox: awalan SB-, Production: tanpa awalan).';
+      errorMessage = '🔑 Server Key Midtrans tidak valid. Pastikan Anda menggunakan key yang benar.';
     }
 
     return NextResponse.json(

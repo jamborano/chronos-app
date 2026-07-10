@@ -18,11 +18,10 @@ export default function ProfilePage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [qrisData, setQrisData] = useState<string | null>(null);
+  const [qrisExpiry, setQrisExpiry] = useState<string | null>(null);
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(300);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const qrisCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const qrCodeInstanceRef = useRef<any>(null);
 
   // ===== CEK SESSION & STATUS VIP =====
   useEffect(() => {
@@ -103,7 +102,6 @@ export default function ProfilePage() {
             vip_expiry: null,
             created_at: new Date().toISOString(),
           };
-          console.log('Creating profile with:', newProfile);
           const { data: inserted, error: insertError } = await supabase
             .from('profiles')
             .insert([newProfile])
@@ -191,6 +189,7 @@ export default function ProfilePage() {
 
       if (data.success) {
         setQrisData(data.qrisString);
+        setQrisExpiry(data.expiredAt);
         setPaymentId(data.paymentId);
         setCountdown(300);
         setShowPaymentModal(true);
@@ -215,54 +214,14 @@ export default function ProfilePage() {
     }
   };
 
-  // ===== RENDER QR CODE =====
-  useEffect(() => {
-    if (!showPaymentModal || !qrisData) return;
-
-    // Tunggu library QRCode.js siap
-    const loadQR = () => {
-      if (typeof window !== 'undefined' && (window as any).QRCode) {
-        const canvas = document.getElementById('qrisCanvas') as HTMLCanvasElement;
-        if (canvas) {
-          try {
-            // Hapus instance sebelumnya jika ada
-            if (qrCodeInstanceRef.current) {
-              qrCodeInstanceRef.current.clear();
-            }
-            qrCodeInstanceRef.current = new (window as any).QRCode(canvas, {
-              text: qrisData,
-              width: 180,
-              height: 180,
-              colorDark: '#000000',
-              colorLight: '#ffffff',
-              correctLevel: (window as any).QRCode.CorrectLevel.H,
-            });
-          } catch (e) {
-            console.warn('QRCode error:', e);
-          }
-        }
-      } else {
-        setTimeout(loadQR, 200);
-      }
-    };
-    loadQR();
-
-    return () => {
-      if (qrCodeInstanceRef.current) {
-        try { qrCodeInstanceRef.current.clear(); } catch (e) {}
-        qrCodeInstanceRef.current = null;
-      }
-    };
-  }, [showPaymentModal, qrisData]);
-
   // ===== TUTUP MODAL PAYMENT =====
   const tutupPaymentModal = () => {
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     setShowPaymentModal(false);
     setQrisData(null);
+    setQrisExpiry(null);
     setPaymentId(null);
     setCountdown(300);
-    qrCodeInstanceRef.current = null;
   };
 
   // ===== COUNTDOWN FORMAT =====
@@ -417,6 +376,7 @@ export default function ProfilePage() {
                 </div>
               </div>
 
+              {/* Sesi Terakhir */}
               {sessions.length > 0 && (
                 <div className={`mt-4 pt-4 border-t ${borderColor}`}>
                   <p className={`text-xs uppercase tracking-wider ${mutedText} mb-2`}>Sesi Terakhir</p>
@@ -472,18 +432,27 @@ export default function ProfilePage() {
               <p className={`text-sm ${mutedText}`}>Scan QRIS untuk membayar Rp 10.000</p>
             </div>
 
+            {/* QRIS */}
             <div className="flex justify-center mb-4">
               <div className="bg-white p-4 rounded-xl shadow-inner">
-                <canvas id="qrisCanvas" width="180" height="180"></canvas>
+                {qrisData ? (
+                  <div id="qris-container" className="w-48 h-48 flex items-center justify-center">
+                    <canvas id="qrisCanvas" width="180" height="180"></canvas>
+                  </div>
+                ) : (
+                  <div className="w-48 h-48 flex items-center justify-center text-gray-400">Loading...</div>
+                )}
               </div>
             </div>
 
+            {/* Countdown */}
             <div className="text-center mb-3">
               <span className={`text-sm font-bold ${countdown < 60 ? 'text-red-500' : 'text-yellow-500'}`}>
                 ⏳ Sisa waktu: {formatCountdown(countdown)}
               </span>
             </div>
 
+            {/* ID Payment */}
             <p className={`text-center text-xs ${mutedText}`}>
               ID: <span className="font-mono">{paymentId}</span>
             </p>
@@ -506,6 +475,25 @@ export default function ProfilePage() {
         </div>
       )}
 
+      {/* ===== LOAD QRCODE.JS ===== */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            if (document.getElementById('qrisCanvas') && window.QRCode) {
+              new QRCode(document.getElementById('qrisCanvas'), {
+                text: ${qrisData ? JSON.stringify(qrisData) : '""'},
+                width: 180,
+                height: 180,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H,
+              });
+            }
+          `,
+        }}
+      />
+
+      {/* Load QRCode.js library */}
       <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" />
     </div>
   );
