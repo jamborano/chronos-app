@@ -93,7 +93,7 @@ export default function ChronosPomodoro() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // ===== YOUTUBE PLAYER (DENGAN RETRY) =====
+  // ===== YOUTUBE PLAYER =====
   const initPlayer = () => {
     if (typeof window === 'undefined') return;
     const container = document.getElementById('youtube-player-container');
@@ -104,7 +104,7 @@ export default function ChronosPomodoro() {
         videoId: 'OUnk5RpRKzA',
         playerVars: {
           autoplay: 1,
-          mute: 1,          // wajib mute untuk autoplay
+          mute: 1,
           controls: 1,
           rel: 0,
           modestbranding: 1,
@@ -113,7 +113,6 @@ export default function ChronosPomodoro() {
         events: {
           onReady: (event: any) => {
             playerRef.current = event.target;
-            // 🔥 Coba unmute setelah 2 detik (browser mungkin blokir)
             setTimeout(() => {
               if (playerRef.current) {
                 try {
@@ -130,8 +129,7 @@ export default function ChronosPomodoro() {
               }
             }, 2000);
           },
-          onError: (err: any) => {
-            console.warn('YouTube error:', err);
+          onError: () => {
             const container = document.getElementById('youtube-player-container');
             if (container) {
               container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=1&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
@@ -140,7 +138,6 @@ export default function ChronosPomodoro() {
         },
       });
     } catch (e) {
-      console.warn('Gagal init YouTube Player, fallback iframe');
       const container = document.getElementById('youtube-player-container');
       if (container) {
         container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=1&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
@@ -148,7 +145,6 @@ export default function ChronosPomodoro() {
     }
   };
 
-  // ===== UNMUTE USER-INITIATED =====
   const handleUnmute = () => {
     if (playerRef.current) {
       playerRef.current.unMute();
@@ -352,7 +348,7 @@ export default function ChronosPomodoro() {
     setIsFocusMode(false);
   };
 
-  // ===== BAYAR VIP =====
+  // ===== BAYAR VIP (HARGA 29.000) =====
   const handleBayarVip = async () => {
     if (!user) {
       setShowLoginModal(true);
@@ -368,7 +364,7 @@ export default function ChronosPomodoro() {
           userId: user.id,
           email: user.email,
           name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Pengguna',
-          amount: 10000,
+          amount: 29000, // 🔥 Harga diubah jadi 29.000
         }),
       });
 
@@ -487,7 +483,6 @@ export default function ChronosPomodoro() {
         .animate-slide-up { animation: slideUp 0.3s ease-out forwards; }
       `}</style>
 
-      {/* ===== HEADER ===== */}
       <header className="flex-shrink-0 flex justify-between items-center px-6 py-3">
         <div className="flex items-center gap-2">
           <Image src="/icon.svg" alt="Chronos Logo" width={32} height={32} className="h-8 w-8" priority onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -533,7 +528,6 @@ export default function ChronosPomodoro() {
         </div>
       </header>
 
-      {/* ===== MAIN ===== */}
       <div className="flex-1 flex items-center justify-center px-4 overflow-hidden">
         <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {!isFocusMode && (
@@ -544,7 +538,6 @@ export default function ChronosPomodoro() {
                   <div id="youtube-player-container" className="w-full h-full">
                     <div id="youtube-player" className="w-full h-full"></div>
                   </div>
-                  {/* 🔥 Tombol unmute (muncul jika autoplay bersuara gagal) */}
                   <button
                     id="unmute-btn"
                     onClick={handleUnmute}
@@ -574,7 +567,6 @@ export default function ChronosPomodoro() {
             </div>
           )}
 
-          {/* ===== CARD TIMER ===== */}
           <div className={`${isFocusMode ? 'lg:col-span-12' : 'lg:col-span-6'} flex flex-col items-center lg:-mt-8`}>
             {!isFocusMode && (
               <div className="text-center mb-3">
@@ -632,7 +624,8 @@ export default function ChronosPomodoro() {
                   <span>⏱️ 10.000+ sesi</span>
                   <span>🔒 Privasi terjaga</span>
                 </div>
-                <p className={`text-[10px] mt-1 ${mutedText}`}>💳 <span className="font-bold text-[#0366d6]">Rp 10.000</span>/bulan – Bayar sekali, fokus selamanya.</p>
+                {/* 🔥 Harga diubah ke 29.000 */}
+                <p className={`text-[10px] mt-1 ${mutedText}`}>💳 <span className="font-bold text-[#0366d6]">Rp 29.000</span>/bulan – Bayar sekali, fokus selamanya.</p>
               </div>
             )}
           </div>
@@ -661,7 +654,6 @@ export default function ChronosPomodoro() {
         </div>
       </div>
 
-      {/* ===== FOOTER ===== */}
       <footer className={`flex-shrink-0 w-full text-center text-[10px] py-2 ${mutedText}`}>
         <span>©2026 Chronos</span>
         <span className="mx-2">-</span>
@@ -669,7 +661,7 @@ export default function ChronosPomodoro() {
         <span className="ml-2">All rights reserved.</span>
       </footer>
 
-      {/* ===== MODAL VIP ===== */}
+      {/* ===== MODAL VIP (harga 29.000) ===== */}
       {showPremiumModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
@@ -697,7 +689,7 @@ export default function ChronosPomodoro() {
               <li className="flex items-center gap-3"><span className="text-[#0366d6]">✓</span> Input Tugas Aktif & Simpan Data</li>
             </ul>
             <div className="mt-6 p-4 rounded-xl border border-[#0366d6]/30 bg-[#0366d6]/5 text-center">
-              <div className={`text-3xl font-bold text-[#e6edf3]`}>Rp 10.000</div>
+              <div className={`text-3xl font-bold text-[#e6edf3]`}>Rp 29.000</div> {/* 🔥 Harga diubah */}
               <div className={`text-xs mt-0.5 ${mutedText}`}>/ bulan · berlangganan hingga dibatalkan</div>
             </div>
 
@@ -719,7 +711,7 @@ export default function ChronosPomodoro() {
                   Memproses...
                 </span>
               ) : (
-                '💳 Bayar & Aktifkan VIP (Rp 10.000)'
+                '💳 Bayar & Aktifkan VIP (Rp 29.000)'
               )}
             </button>
 
@@ -817,7 +809,7 @@ export default function ChronosPomodoro() {
                 </svg>
               </div>
               <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-[#e6edf3]' : 'text-black'}`}>Bayar VIP</h3>
-              <p className={`text-sm ${mutedText}`}>Scan QRIS untuk membayar Rp 10.000</p>
+              <p className={`text-sm ${mutedText}`}>Scan QRIS untuk membayar Rp 29.000</p>
             </div>
             <div className="flex justify-center mb-4">
               <div className="bg-white p-4 rounded-xl shadow-inner">

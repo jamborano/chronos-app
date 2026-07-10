@@ -26,11 +26,9 @@ const snap = new midtransClient.Snap({
 // ============================================================
 export async function POST(request: Request) {
   try {
-    // 1. Parse body
     const body = await request.json();
-    const { userId, email, name, amount = 10000 } = body;
+    const { userId, email, name, amount = 29000 } = body; // 🔥 harga default 29.000
 
-    // 2. Validasi
     if (!userId || !email) {
       return NextResponse.json(
         { error: 'User ID dan email wajib diisi' },
@@ -38,11 +36,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. 🔥 Order ID maksimal 50 karakter
     const shortUserId = userId.replace(/-/g, '').slice(0, 8);
     const orderId = `VIP-${shortUserId}-${Date.now()}`;
 
-    // 4. Parameter transaksi
     const parameter = {
       transaction_details: {
         order_id: orderId,
@@ -65,12 +61,10 @@ export async function POST(request: Request) {
       ],
     };
 
-    // 5. Kirim ke Midtrans
     console.log(`📤 Creating transaction: ${orderId}`);
     const transaction: any = await snap.createTransaction(parameter);
     console.log(`✅ Transaction created: ${transaction.transaction_id}`);
 
-    // 6. Ambil QRIS
     let qrisString = '';
     if (transaction.actions && Array.isArray(transaction.actions)) {
       const qrisAction = transaction.actions.find(
@@ -86,7 +80,6 @@ export async function POST(request: Request) {
       qrisString = transaction.qr_code;
     }
 
-    // 7. Return
     return NextResponse.json({
       success: true,
       qrisString: qrisString || null,
