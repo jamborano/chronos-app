@@ -301,12 +301,14 @@ export default function ChronosPomodoro() {
 
   // ===== LOGIN =====
   const handleLoginWithGoogle = async () => {
-    setIsLoggingIn(true);
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: window.location.origin },
-      });
+  setIsLoggingIn(true);
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: 'https://chronos.my.id/auth/callback', // 🔥 arahkan ke domain kita
+      },
+    });
       if (error) {
         console.error('Login error:', error);
         alert('Gagal login, coba lagi.');
