@@ -20,6 +20,7 @@ export default function ChronosPomodoro() {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showHowToModal, setShowHowToModal] = useState(false);
   const [currentTask, setCurrentTask] = useState('');
   const [user, setUser] = useState<any>(null);
   const [profileData, setProfileData] = useState<any>(null);
@@ -53,7 +54,7 @@ export default function ChronosPomodoro() {
     return () => listener?.subscription.unsubscribe();
   }, []);
 
-  // ===== FETCH PROFILE & SET VIP MODE =====
+  // ===== FETCH PROFILE =====
   useEffect(() => {
     if (!user) {
       setProfileData(null);
@@ -295,18 +296,16 @@ export default function ChronosPomodoro() {
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
 
-  // ===== 🔥 TOMBOL VIP (akses gratis, bayar dulu) =====
+  // ===== 🔥 TOMBOL VIP =====
   const handleVipToggle = () => {
-    // Jika sudah login dan VIP, toggle mode
     if (user && isVipMode) {
       setIsFocusMode(!isFocusMode);
       return;
     }
-    // Selain itu, tampilkan modal pembayaran (bukan login)
     setShowPremiumModal(true);
   };
 
-  // ===== LOGIN (hanya setelah bayar) =====
+  // ===== LOGIN =====
   const handleLoginWithGoogle = async () => {
     if (!isVipMode) {
       alert('Anda harus membayar VIP terlebih dahulu sebelum login.');
@@ -340,9 +339,8 @@ export default function ChronosPomodoro() {
     setIsFocusMode(false);
   };
 
-  // ===== 🔥 BAYAR VIP (tanpa login, langsung ke Midtrans) =====
+  // ===== BAYAR VIP =====
   const handleBayarVip = async () => {
-    // Tidak perlu cek user, langsung proses pembayaran
     const email = user?.email || prompt('Masukkan email Anda untuk pembayaran:');
     if (!email) {
       alert('Email diperlukan untuk pembayaran.');
@@ -474,6 +472,7 @@ export default function ChronosPomodoro() {
         .animate-slide-up { animation: slideUp 0.3s ease-out forwards; }
       `}</style>
 
+      {/* ===== HEADER ===== */}
       <header className="flex-shrink-0 flex justify-between items-center px-6 py-3">
         <div className="flex items-center gap-2">
           <Image src="/icon.svg" alt="Chronos Logo" width={32} height={32} className="h-8 w-8" priority onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -491,9 +490,36 @@ export default function ChronosPomodoro() {
           >
             {isFocusMode && isUserVip ? 'FREE' : 'VIP'}
           </button>
+          {/* 🔥 TOMBOL HOW TO USE */}
+          <button
+            onClick={() => setShowHowToModal(true)}
+            className={`rounded-full transition-all hover:scale-105 border p-2 ${
+              theme === 'dark'
+                ? 'bg-white/10 hover:bg-white/20 text-[#e6edf3] border-[#30363d]'
+                : 'bg-black/10 hover:bg-black/20 text-black border-black/30'
+            }`}
+            aria-label="Petunjuk Pemakaian"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+            </svg>
+          </button>
+          <button
+            onClick={toggleTheme}
+            className={`rounded-full transition-all hover:scale-105 border p-2 ${
+              theme === 'dark'
+                ? 'bg-white/10 hover:bg-white/20 text-[#e6edf3] border-[#30363d]'
+                : 'bg-black/10 hover:bg-black/20 text-black border-black/30'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+            </svg>
+          </button>
         </div>
       </header>
 
+      {/* ===== MAIN ===== */}
       <div className="flex-1 flex items-center justify-center px-4 overflow-hidden">
         <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {!isFocusMode && (
@@ -520,6 +546,7 @@ export default function ChronosPomodoro() {
             </div>
           )}
 
+          {/* ===== CARD TIMER ===== */}
           <div className={`${isFocusMode ? 'lg:col-span-12' : 'lg:col-span-6'} flex flex-col items-center lg:-mt-8`}>
             {!isFocusMode && (
               <div className="text-center mb-3">
@@ -528,6 +555,7 @@ export default function ChronosPomodoro() {
               </div>
             )}
             <div className="w-full max-w-md mx-auto p-6 rounded-3xl shadow-2xl transition-all duration-500" style={getCardStyle()}>
+              {/* TAB MODE */}
               <div className="flex justify-between mb-4 text-[10px] md:text-xs tracking-[0.2em] font-bold">
                 {['POMODORO', 'ISTIRAHAT SINGKAT', 'ISTIRAHAT PANJANG'].map((label, idx) => {
                   const mode = idx === 0 ? 'pomodoro' : idx === 1 ? 'short' : 'long';
@@ -606,11 +634,12 @@ export default function ChronosPomodoro() {
         </div>
       </div>
 
+      {/* ===== FOOTER ===== */}
       <footer className={`flex-shrink-0 w-full text-center text-[10px] py-2 ${mutedText}`}>
         <span>©2026 Chronos</span><span className="mx-2">-</span><a href="https://jbtech.biz.id" target="_blank" rel="noopener" className="hover:underline text-[#0366d6]">jbtech.biz.id</a><span className="ml-2">All rights reserved.</span>
       </footer>
 
-      {/* ===== MODAL VIP (PEMBAYARAN, BUKAN LOGIN) ===== */}
+      {/* ===== MODAL VIP ===== */}
       {showPremiumModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
@@ -641,8 +670,6 @@ export default function ChronosPomodoro() {
               <div className={`text-3xl font-bold text-[#e6edf3]`}>Rp 10.000</div>
               <div className={`text-xs mt-0.5 ${mutedText}`}>/ bulan · berlangganan hingga dibatalkan</div>
             </div>
-
-            {/* 🔥 TOMBOL BAYAR LANGSUNG KE MIDTRANS (TANPA LOGIN) */}
             <button
               onClick={handleBayarVip}
               disabled={paymentLoading}
@@ -664,7 +691,6 @@ export default function ChronosPomodoro() {
                 '💳 Bayar & Aktifkan VIP (Rp 10.000)'
               )}
             </button>
-
             <button
               onClick={() => {
                 setShowPremiumModal(false);
@@ -676,7 +702,6 @@ export default function ChronosPomodoro() {
             >
               Lewati & lanjutkan (dengan iklan)
             </button>
-
             <button
               onClick={() => {
                 setShowPremiumModal(false);
@@ -692,7 +717,7 @@ export default function ChronosPomodoro() {
         </div>
       )}
 
-      {/* ===== MODAL LOGIN (hanya muncul setelah bayar) ===== */}
+      {/* ===== MODAL LOGIN ===== */}
       {showLoginModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => { if (!isLoggingIn) setShowLoginModal(false); }}>
           <div className={`w-full max-w-sm mx-4 p-8 rounded-2xl shadow-2xl animate-slide-up ${theme === 'dark' ? 'bg-[#161b22] border border-[#30363d]' : 'bg-white border border-gray-200'}`} onClick={(e) => e.stopPropagation()}>
@@ -700,7 +725,6 @@ export default function ChronosPomodoro() {
               <div className={`text-2xl font-bold ${theme === 'dark' ? 'text-[#e6edf3]' : 'text-black'}`}>Login</div>
               <div className={`text-sm mt-1 ${mutedText}`}>Masuk dengan akun Google</div>
             </div>
-
             <button
               onClick={handleLoginWithGoogle}
               disabled={isLoggingIn}
@@ -726,14 +750,12 @@ export default function ChronosPomodoro() {
                 </>
               )}
             </button>
-
             <button
               onClick={() => { if (!isLoggingIn) setShowLoginModal(false); }}
               className={`w-full mt-3 py-2 rounded-full text-xs tracking-wide transition-all border ${theme === 'dark' ? 'text-[#e6edf3]/60 border-[#30363d] hover:text-white hover:border-white/30' : 'text-black/60 border-black/20 hover:text-black hover:border-black/50'}`}
             >
               Tutup
             </button>
-
             <button
               onClick={() => { if (!isLoggingIn) setShowLoginModal(false); }}
               className="absolute top-4 right-4 text-2xl text-white/40 hover:text-white"
@@ -777,6 +799,80 @@ export default function ChronosPomodoro() {
             <p className={`text-center text-xs ${mutedText}`}>ID: <span className="font-mono">{paymentId}</span></p>
             <button onClick={tutupPaymentModal} className={`w-full mt-4 py-2.5 rounded-lg font-bold text-sm transition ${theme === 'dark' ? 'bg-[#30363d] hover:bg-[#484f58] text-[#e6edf3]' : 'bg-gray-200 hover:bg-gray-300 text-black'}`}>Tutup</button>
             <p className={`text-center text-[10px] mt-2 ${mutedText}`}>Pembayaran akan otomatis terverifikasi. Refresh halaman jika perlu.</p>
+          </div>
+        </div>
+      )}
+
+      {/* ===== 🔥 MODAL HOW TO USE ===== */}
+      {showHowToModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in"
+          onClick={() => setShowHowToModal(false)}
+        >
+          <div
+            className={`w-full max-w-md mx-4 p-6 rounded-2xl shadow-2xl animate-slide-up max-h-[90vh] overflow-y-auto ${
+              theme === 'dark' ? 'bg-[#161b22] border border-[#30363d] text-[#e6edf3]' : 'bg-white border border-gray-200 text-black'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">📖 Cara Pakai Chronos</h2>
+              <button
+                onClick={() => setShowHowToModal(false)}
+                className="w-8 h-8 rounded-full hover:bg-black/10 flex items-center justify-center text-2xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 text-sm">
+              <div className="flex gap-3 items-start">
+                <div className="w-8 h-8 rounded-full bg-[#0366d6]/20 text-[#0366d6] flex items-center justify-center flex-shrink-0 text-lg font-bold">1</div>
+                <div>
+                  <p className="font-bold">Pilih Mode Timer</p>
+                  <p className={`text-xs ${mutedText}`}>Fokus (25 menit) · Istirahat Singkat (5 menit) · Istirahat Panjang (15 menit)</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 items-start">
+                <div className="w-8 h-8 rounded-full bg-[#0366d6]/20 text-[#0366d6] flex items-center justify-center flex-shrink-0 text-lg font-bold">2</div>
+                <div>
+                  <p className="font-bold">Mulai Timer</p>
+                  <p className={`text-xs ${mutedText}`}>Tekan <span className="font-bold">MULAI</span> untuk mulai fokus. Timer akan berdetak mundur.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 items-start">
+                <div className="w-8 h-8 rounded-full bg-[#0366d6]/20 text-[#0366d6] flex items-center justify-center flex-shrink-0 text-lg font-bold">3</div>
+                <div>
+                  <p className="font-bold">Mode VIP (Tanpa Iklan)</p>
+                  <p className={`text-xs ${mutedText}`}>Aktifkan VIP untuk menghilangkan iklan, akses alarm premium, dan simpan data sesi.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 items-start">
+                <div className="w-8 h-8 rounded-full bg-[#0366d6]/20 text-[#0366d6] flex items-center justify-center flex-shrink-0 text-lg font-bold">4</div>
+                <div>
+                  <p className="font-bold">Login & Statistik</p>
+                  <p className={`text-xs ${mutedText}`}>Setelah bayar VIP, login dengan Google untuk melihat laporan lengkap sesi Anda.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 items-start">
+                <div className="w-8 h-8 rounded-full bg-[#0366d6]/20 text-[#0366d6] flex items-center justify-center flex-shrink-0 text-lg font-bold">5</div>
+                <div>
+                  <p className="font-bold">Putar Musik</p>
+                  <p className={`text-xs ${mutedText}`}>Nikmati musik latar dari YouTube untuk menemani fokus Anda. Auto-play di mode FREE.</p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowHowToModal(false)}
+              className="w-full mt-6 py-2.5 rounded-full bg-[#0366d6] text-white font-bold text-sm hover:bg-[#0355b0] transition"
+            >
+              Saya Mengerti
+            </button>
           </div>
         </div>
       )}
