@@ -101,11 +101,26 @@ export default function RootLayout({
     <html lang="id">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* 🔥 Favicon – arahkan ke public/favicon.ico */}
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        {/* 🔥 Favicon pakai icon.svg dengan cache busting */}
+        <link
+          rel="icon"
+          href="/icon.svg?v=2"
+          type="image/svg+xml"
+        />
+        <link
+          rel="shortcut icon"
+          href="/icon.svg?v=2"
+          type="image/svg+xml"
+        />
+        <link
+          rel="apple-touch-icon"
+          href="/apple-touch-icon.png"
+        />
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body className={plusJakartaSans.className}>{children}</body>
