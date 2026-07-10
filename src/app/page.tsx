@@ -53,7 +53,7 @@ export default function ChronosPomodoro() {
     return () => listener?.subscription.unsubscribe();
   }, []);
 
-  // ===== FETCH PROFILE (otomatis buat jika belum ada) =====
+  // ===== FETCH PROFILE =====
   useEffect(() => {
     if (!user) {
       setProfileData(null);
@@ -74,7 +74,7 @@ export default function ChronosPomodoro() {
         return;
       }
 
-      // Jika belum ada, buat profil baru
+      // 🔥 Buat profil baru jika belum ada
       if (!data) {
         const newProfile = {
           id: user.id,
@@ -320,15 +320,13 @@ export default function ChronosPomodoro() {
     setIsFocusMode(!isFocusMode);
   };
 
-  // ===== 🔥 LOGIN DENGAN REDIRECT KE CALLBACK KITA =====
+  // ===== 🔥 LOGIN DENGAN GOOGLE (tanpa redirectTo) =====
   const handleLoginWithGoogle = async () => {
     setIsLoggingIn(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-          redirectTo: 'https://chronos.my.id/auth/callback', // 🔥 pasti ke sini
-        },
+        // Biarkan redirectTo default (diatur oleh Supabase berdasarkan Site URL)
       });
       if (error) {
         console.error('Login error:', error);
@@ -336,6 +334,7 @@ export default function ChronosPomodoro() {
         setIsLoggingIn(false);
       } else {
         setShowLoginModal(false);
+        // Redirect akan terjadi otomatis, loading akan selesai setelah redirect
         setTimeout(() => setIsLoggingIn(false), 5000);
       }
     } catch (err) {
