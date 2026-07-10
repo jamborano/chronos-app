@@ -53,20 +53,49 @@ export default function ChronosPomodoro() {
     return () => listener?.subscription.unsubscribe();
   }, []);
 
-  // ===== FETCH PROFILE =====
+  // ===== FETCH PROFILE (otomatis buat jika belum ada) =====
   useEffect(() => {
-    if (!user) { setProfileData(null); return; }
+    if (!user) {
+      setProfileData(null);
+      return;
+    }
     const fetchProfile = async () => {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .maybeSingle();
+
       if (!error && data) {
         setProfileData(data);
         const isVip = data.vip_expiry ? new Date(data.vip_expiry) > new Date() : false;
         localStorage.setItem('chronos_vip_status', JSON.stringify({ isVipMode: isVip, isFocusMode: isVip }));
         setIsVipMode(isVip);
+        return;
+      }
+
+      // Jika belum ada, buat profil baru
+      if (!data) {
+        const newProfile = {
+          id: user.id,
+          email: user.email,
+          full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
+          avatar_url: user.user_metadata?.avatar_url || null,
+          vip_expiry: null,
+          created_at: new Date().toISOString(),
+        };
+        const { data: inserted, error: insertError } = await supabase
+          .from('profiles')
+          .insert([newProfile])
+          .select()
+          .single();
+        if (!insertError && inserted) {
+          setProfileData(inserted);
+          localStorage.setItem('chronos_vip_status', JSON.stringify({ isVipMode: false, isFocusMode: false }));
+          setIsVipMode(false);
+        } else {
+          console.error('Gagal buat profil:', insertError);
+        }
       }
     };
     fetchProfile();
@@ -83,17 +112,12 @@ export default function ChronosPomodoro() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // ===== YOUTUBE PLAYER (PERBAIKAN) =====
+  // ===== YOUTUBE PLAYER =====
   const initPlayer = () => {
     if (typeof window === 'undefined') return;
     const container = document.getElementById('youtube-player-container');
-    if (!container) {
-      console.warn('Container youtube-player-container not found');
-      return;
-    }
+    if (!container) return;
     if (playerRef.current) return;
-
-    // Tunggu hingga elemen youtube-player benar-benar ada di DOM
     const checkPlayerElement = () => {
       const playerElement = document.getElementById('youtube-player');
       if (!playerElement) {
@@ -121,8 +145,7 @@ export default function ChronosPomodoro() {
                 }
               }, 5000);
             },
-            onError: (err: any) => {
-              console.warn('YouTube error:', err);
+            onError: () => {
               const container = document.getElementById('youtube-player-container');
               if (container) {
                 container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=0&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
@@ -131,14 +154,12 @@ export default function ChronosPomodoro() {
           },
         });
       } catch (e) {
-        console.warn('Gagal init YouTube:', e);
         const container = document.getElementById('youtube-player-container');
         if (container) {
           container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=0&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
         }
       }
     };
-
     checkPlayerElement();
   };
 
@@ -299,16 +320,16 @@ export default function ChronosPomodoro() {
     setIsFocusMode(!isFocusMode);
   };
 
-  // ===== LOGIN =====
+  // ===== 🔥 LOGIN DENGAN REDIRECT KE CALLBACK KITA =====
   const handleLoginWithGoogle = async () => {
-  setIsLoggingIn(true);
-  try {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: 'https://chronos.my.id/auth/callback', // 🔥 arahkan ke domain kita
-      },
-    });
+    setIsLoggingIn(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: 'https://chronos.my.id/auth/callback', // 🔥 pasti ke sini
+        },
+      });
       if (error) {
         console.error('Login error:', error);
         alert('Gagal login, coba lagi.');

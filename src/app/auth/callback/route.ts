@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
@@ -6,14 +7,7 @@ export async function GET(request: Request) {
   const code = searchParams.get('code');
 
   if (code) {
-    // Baca cookie dari header request
-    const cookieHeader = request.headers.get('cookie') || '';
-    const cookies = Object.fromEntries(
-      cookieHeader.split('; ').map(c => {
-        const [key, ...val] = c.split('=');
-        return [key, val.join('=')];
-      })
-    );
+    const cookieStore = await cookies();
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,15 +15,21 @@ export async function GET(request: Request) {
       {
         cookies: {
           get(name: string) {
-            return cookies[name] || '';
+            return cookieStore.get(name)?.value;
           },
           set(name: string, value: string, options: any) {
-            // Kita tidak bisa set cookie di server tanpa cookieStore,
-            // tapi kita bisa menggunakan NextResponse untuk set cookie di redirect
-            // Kita simpan di global atau gunakan response
+            try {
+              cookieStore.set(name, value, { ...options });
+            } catch (error) {
+              console.warn('Set cookie error:', error);
+            }
           },
           remove(name: string, options: any) {
-            // Tidak perlu remove di sini
+            try {
+              cookieStore.set(name, '', { ...options, maxAge: 0 });
+            } catch (error) {
+              console.warn('Remove cookie error:', error);
+            }
           },
         },
       }
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
-      console.error('Auth error:', error);
+      console.error('Auth callback error:', error);
       return NextResponse.redirect(`${origin}/?auth_error=true`);
     }
   }
