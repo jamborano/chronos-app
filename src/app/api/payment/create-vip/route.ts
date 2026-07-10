@@ -1,12 +1,30 @@
 import { NextResponse } from 'next/server';
 import midtransClient from 'midtrans-client';
 
-const isProduction = process.env.NODE_ENV === 'production';
+// ============================================================
+//  🔥 PASTIKAN ENVIRONMENT SUDAH BENAR
+// ============================================================
+// Gunakan variabel environment untuk menentukan mode
+const isProduction = process.env.MIDTRANS_IS_PRODUCTION === 'true';
+
+// Atau jika mau paksa sandbox untuk testing:
+// const isProduction = false;
+
+const serverKey = process.env.MIDTRANS_SERVER_KEY!;
+const clientKey = process.env.MIDTRANS_CLIENT_KEY!;
+
+// Validasi: pastikan key tidak kosong
+if (!serverKey || !clientKey) {
+  console.error('❌ MIDTRANS_SERVER_KEY atau MIDTRANS_CLIENT_KEY tidak ditemukan!');
+}
+
+console.log(`🔧 Midtrans mode: ${isProduction ? 'PRODUCTION' : 'SANDBOX'}`);
+console.log(`🔑 Server Key: ${serverKey.substring(0, 10)}...`);
 
 const snap = new midtransClient.Snap({
   isProduction: isProduction,
-  serverKey: process.env.MIDTRANS_SERVER_KEY!,
-  clientKey: process.env.MIDTRANS_CLIENT_KEY!,
+  serverKey: serverKey,
+  clientKey: clientKey,
 });
 
 export async function POST(request: Request) {
@@ -48,10 +66,10 @@ export async function POST(request: Request) {
       },
     };
 
-    // 🔥 Cast ke any untuk menghindari error TypeScript di properti actions
+    // 🔥 Buat transaksi ke Midtrans
     const transaction: any = await snap.createTransaction(parameter);
 
-    // Ambil QRIS dari actions atau qr_code
+    // Ambil QRIS
     let qrisString = '';
     if (transaction.actions && Array.isArray(transaction.actions)) {
       const qrisAction = transaction.actions.find(
@@ -62,17 +80,8 @@ export async function POST(request: Request) {
       }
     }
 
-    // Fallback ke qr_code langsung
     if (!qrisString && transaction.qr_code) {
       qrisString = transaction.qr_code;
-    }
-
-    // Jika masih tidak ada, coba dari actions dengan name 'qr-code'
-    if (!qrisString && transaction.actions) {
-      const qrAction = transaction.actions.find((a: any) => a.name === 'qr-code');
-      if (qrAction) {
-        qrisString = qrAction.url;
-      }
     }
 
     if (!qrisString) {
@@ -80,7 +89,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { 
           success: false, 
-          error: 'QRIS tidak ditemukan, coba metode pembayaran lain',
+          error: 'QRIS tidak ditemukan',
           transactionId: transaction.transaction_id 
         },
         { status: 500 }
@@ -97,9 +106,21 @@ export async function POST(request: Request) {
     });
   } catch (error: any) {
     console.error('❌ Midtrans error:', error);
+    
+    // 🔥 Error handling yang lebih detail
+    let errorMessage = 'Gagal membuat pembayaran';
+    let statusCode = 500;
+
+    if (error.response?.data?.error_messages) {
+      errorMessage = error.response.data.error_messages.join(', ');
+      statusCode = error.response.status || 500;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+
     return NextResponse.json(
-      { error: error.message || 'Gagal membuat pembayaran' },
-      { status: 500 }
+      { error: errorMessage },
+      { status: statusCode }
     );
   }
 }
