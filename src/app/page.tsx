@@ -10,7 +10,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function ChronosPomodoro() {
-  // ===== STATE (sama seperti sebelumnya, singkat) =====
+  // ===== STATE =====
   const [minutes, setMinutes] = useState(25);
   const [seconds, setSeconds] = useState(0);
   const [currentMode, setCurrentMode] = useState<'pomodoro' | 'short' | 'long'>('pomodoro');
@@ -92,7 +92,7 @@ export default function ChronosPomodoro() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // ===== YOUTUBE PLAYER – VOLUME 50% =====
+  // ===== YOUTUBE PLAYER (AUTOPLAY, TANPA OVERLAY) =====
   const fallbackIframe = () => {
     const container = document.getElementById('youtube-player-container');
     if (container) {
@@ -119,7 +119,7 @@ export default function ChronosPomodoro() {
         videoId: 'OUnk5RpRKzA',
         playerVars: {
           autoplay: 1,
-          mute: 1,          // awal mute agar autoplay diizinkan
+          mute: 1,
           controls: 1,
           rel: 0,
           modestbranding: 1,
@@ -129,14 +129,9 @@ export default function ChronosPomodoro() {
           onReady: (event: any) => {
             playerRef.current = event.target;
             try {
-              // 🔥 Set volume ke 50% (meskipun masih mute)
-              event.target.setVolume(50);
-              // 🔥 Coba unmute & play (jika diizinkan browser)
-              event.target.unMute();
               event.target.playVideo();
             } catch (e) {
-              console.warn('Unmute gagal (browser policy), video tetap mute dengan volume 50%');
-              // tetap set volume 50 meski mute
+              console.warn('Play error:', e);
             }
           },
           onError: () => fallbackIframe(),
@@ -530,7 +525,7 @@ export default function ChronosPomodoro() {
                   <div id="youtube-player-container" className="w-full h-full">
                     <div id="youtube-player" className="w-full h-full"></div>
                   </div>
-                  {/* Tidak ada overlay */}
+                  {/* 🔥 TIDAK ADA TOMBOL OVERLAY */}
                 </div>
                 <a href="https://www.youtube.com/watch?v=OUnk5RpRKzA" target="_blank" rel="noopener" className={`text-[9px] flex items-center gap-1 justify-center mt-1 transition-colors ${mutedText} hover:text-[#ff0000]`}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
