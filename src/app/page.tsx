@@ -41,7 +41,6 @@ export default function ChronosPomodoro() {
   // ===== REF YOUTUBE =====
   const playerRef = useRef<any>(null);
   const apiLoadedRef = useRef(false);
-  const [isMuted, setIsMuted] = useState(true);
 
   // ===== CEK SESSION =====
   useEffect(() => {
@@ -93,7 +92,7 @@ export default function ChronosPomodoro() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // ===== YOUTUBE PLAYER (FIX AUTOPLAY) =====
+  // ===== YOUTUBE PLAYER (AUTOPLAY, TANPA OVERLAY) =====
   const fallbackIframe = () => {
     const container = document.getElementById('youtube-player-container');
     if (container) {
@@ -104,31 +103,17 @@ export default function ChronosPomodoro() {
   const initPlayer = () => {
     if (typeof window === 'undefined') return;
     const container = document.getElementById('youtube-player-container');
-    if (!container) {
-      console.warn('Container youtube-player-container not found');
-      return;
-    }
-    if (playerRef.current) {
-      console.log('Player already initialized');
-      return;
-    }
-
-    // 🔥 Pastikan elemen youtube-player ada
+    if (!container || playerRef.current) return;
     const playerElement = document.getElementById('youtube-player');
     if (!playerElement) {
-      console.warn('Element #youtube-player not found, retrying...');
       setTimeout(initPlayer, 300);
       return;
     }
-
-    // Pastikan API YT siap
     if (typeof (window as any).YT === 'undefined' || typeof (window as any).YT.Player === 'undefined') {
-      console.warn('YT API not ready, retrying...');
       setTimeout(initPlayer, 300);
       return;
     }
 
-    console.log('🎬 Initializing YouTube Player...');
     try {
       const newPlayer = new (window as any).YT.Player('youtube-player', {
         videoId: 'OUnk5RpRKzA',
@@ -142,75 +127,39 @@ export default function ChronosPomodoro() {
         },
         events: {
           onReady: (event: any) => {
-            console.log('✅ YouTube Player ready');
             playerRef.current = event.target;
-            // 🔥 Coba unmute setelah 2 detik
-            setTimeout(() => {
-              if (playerRef.current) {
-                try {
-                  playerRef.current.unMute();
-                  playerRef.current.playVideo();
-                  setIsMuted(false);
-                  const btn = document.getElementById('unmute-btn');
-                  if (btn) btn.style.display = 'none';
-                  console.log('🔊 Unmute success');
-                } catch (e) {
-                  console.log('Unmute failed (browser policy), showing unmute button');
-                  const btn = document.getElementById('unmute-btn');
-                  if (btn) btn.style.display = 'flex';
-                }
-              }
-            }, 2000);
+            try {
+              event.target.playVideo();
+            } catch (e) {
+              console.warn('Play error:', e);
+            }
           },
-          onError: (err: any) => {
-            console.warn('YouTube error:', err);
-            fallbackIframe();
-          },
+          onError: () => fallbackIframe(),
         },
       });
     } catch (e) {
-      console.warn('Failed to init YouTube Player, fallback iframe', e);
       fallbackIframe();
     }
   };
 
-  // ===== UNMUTE USER-INITIATED =====
-  const handleUnmute = () => {
-    if (playerRef.current) {
-      playerRef.current.unMute();
-      playerRef.current.playVideo();
-      setIsMuted(false);
-      const btn = document.getElementById('unmute-btn');
-      if (btn) btn.style.display = 'none';
-    }
-  };
-
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    // Load YouTube API script
-    if (!apiLoadedRef.current) {
-      apiLoadedRef.current = true;
-      if (!document.getElementById('youtube-api')) {
-        const tag = document.createElement('script');
-        tag.id = 'youtube-api';
-        tag.src = 'https://www.youtube.com/iframe_api';
-        document.head.appendChild(tag);
-      }
-      // Override callback
-      const originalCallback = (window as any).onYouTubeIframeAPIReady;
-      (window as any).onYouTubeIframeAPIReady = () => {
-        if (originalCallback) originalCallback();
-        // Tunggu sebentar agar DOM player siap
-        setTimeout(initPlayer, 500);
-      };
-    }
-
-    // Jika API sudah ada, langsung init
+    if (typeof window === 'undefined' || apiLoadedRef.current) return;
+    apiLoadedRef.current = true;
     if ((window as any).YT && (window as any).YT.Player) {
       setTimeout(initPlayer, 500);
+      return;
     }
-
+    const originalCallback = (window as any).onYouTubeIframeAPIReady;
+    (window as any).onYouTubeIframeAPIReady = () => {
+      if (originalCallback) originalCallback();
+      setTimeout(initPlayer, 500);
+    };
+    if (!document.getElementById('youtube-api')) {
+      const tag = document.createElement('script');
+      tag.id = 'youtube-api';
+      tag.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(tag);
+    }
     return () => {
       if ((window as any).YT && playerRef.current) {
         try { playerRef.current.destroy(); } catch (e) {}
@@ -576,19 +525,7 @@ export default function ChronosPomodoro() {
                   <div id="youtube-player-container" className="w-full h-full">
                     <div id="youtube-player" className="w-full h-full"></div>
                   </div>
-                  <button
-                    id="unmute-btn"
-                    onClick={handleUnmute}
-                    className="absolute inset-0 flex items-center justify-center bg-black/60 hover:bg-black/70 transition-colors"
-                    style={{ display: isMuted ? 'flex' : 'none' }}
-                  >
-                    <div className="bg-white/20 backdrop-blur-sm rounded-full p-4 flex items-center gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6 text-white">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
-                      </svg>
-                      <span className="text-white font-bold text-sm">🔊 Aktifkan Suara</span>
-                    </div>
-                  </button>
+                  {/* 🔥 TIDAK ADA TOMBOL OVERLAY */}
                 </div>
                 <a href="https://www.youtube.com/watch?v=OUnk5RpRKzA" target="_blank" rel="noopener" className={`text-[9px] flex items-center gap-1 justify-center mt-1 transition-colors ${mutedText} hover:text-[#ff0000]`}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
