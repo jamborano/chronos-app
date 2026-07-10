@@ -93,7 +93,7 @@ export default function ChronosPomodoro() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // ===== YOUTUBE PLAYER (AUTO-PLAY + UNMUTE) =====
+  // ===== YOUTUBE PLAYER (DENGAN RETRY) =====
   const initPlayer = () => {
     if (typeof window === 'undefined') return;
     const container = document.getElementById('youtube-player-container');
@@ -104,7 +104,7 @@ export default function ChronosPomodoro() {
         videoId: 'OUnk5RpRKzA',
         playerVars: {
           autoplay: 1,
-          mute: 1,          // wajib mute agar autoplay diizinkan
+          mute: 1,          // wajib mute untuk autoplay
           controls: 1,
           rel: 0,
           modestbranding: 1,
@@ -113,7 +113,7 @@ export default function ChronosPomodoro() {
         events: {
           onReady: (event: any) => {
             playerRef.current = event.target;
-            // 🔥 Coba unmute setelah 1 detik (browser mungkin blokir)
+            // 🔥 Coba unmute setelah 2 detik (browser mungkin blokir)
             setTimeout(() => {
               if (playerRef.current) {
                 try {
@@ -123,14 +123,15 @@ export default function ChronosPomodoro() {
                   const btn = document.getElementById('unmute-btn');
                   if (btn) btn.style.display = 'none';
                 } catch (e) {
-                  console.log('Unmute gagal (browser blokir), tampilkan tombol');
+                  console.log('Unmute gagal, tampilkan tombol');
                   const btn = document.getElementById('unmute-btn');
                   if (btn) btn.style.display = 'flex';
                 }
               }
-            }, 1000);
+            }, 2000);
           },
-          onError: () => {
+          onError: (err: any) => {
+            console.warn('YouTube error:', err);
             const container = document.getElementById('youtube-player-container');
             if (container) {
               container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=1&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
@@ -139,7 +140,7 @@ export default function ChronosPomodoro() {
         },
       });
     } catch (e) {
-      // fallback iframe
+      console.warn('Gagal init YouTube Player, fallback iframe');
       const container = document.getElementById('youtube-player-container');
       if (container) {
         container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=1&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
@@ -351,7 +352,7 @@ export default function ChronosPomodoro() {
     setIsFocusMode(false);
   };
 
-  // ===== BAYAR VIP (WAJIB LOGIN) =====
+  // ===== BAYAR VIP =====
   const handleBayarVip = async () => {
     if (!user) {
       setShowLoginModal(true);
@@ -543,7 +544,7 @@ export default function ChronosPomodoro() {
                   <div id="youtube-player-container" className="w-full h-full">
                     <div id="youtube-player" className="w-full h-full"></div>
                   </div>
-                  {/* 🔥 TOMBOL UNMUTE (muncul jika autoplay bersuara gagal) */}
+                  {/* 🔥 Tombol unmute (muncul jika autoplay bersuara gagal) */}
                   <button
                     id="unmute-btn"
                     onClick={handleUnmute}
@@ -554,7 +555,7 @@ export default function ChronosPomodoro() {
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6 text-white">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
                       </svg>
-                      <span className="text-white font-bold text-sm">Aktifkan Suara</span>
+                      <span className="text-white font-bold text-sm">🔊 Aktifkan Suara</span>
                     </div>
                   </button>
                 </div>
