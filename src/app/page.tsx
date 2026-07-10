@@ -96,7 +96,7 @@ export default function ChronosPomodoro() {
   const fallbackIframe = () => {
     const container = document.getElementById('youtube-player-container');
     if (container) {
-      container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=1&controls=1&rel=0&modestbranding=1&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
+      container.innerHTML = `<iframe src="https://www.youtube.com/embed/OUnk5RpRKzA?autoplay=1&mute=0&controls=1&rel=0&modestbranding=1&playsinline=1" title="YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-full"></iframe>`;
     }
   };
 
