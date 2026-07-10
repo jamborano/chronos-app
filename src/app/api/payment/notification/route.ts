@@ -1,112 +1,65 @@
+// src/app/api/payment/notification/route.ts
+
 import { NextResponse } from 'next/server';
-import midtransClient from 'midtrans-client';
+import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 
-const isProduction = process.env.NODE_ENV === 'production';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// ============================================================
-//  KONFIGURASI MIDTRANS (Core API untuk verifikasi)
-// ============================================================
-const coreApi = new midtransClient.CoreApi({
-  isProduction: isProduction,
-  serverKey: process.env.MIDTRANS_SERVER_KEY!,
-  clientKey: process.env.MIDTRANS_CLIENT_KEY!,
-});
+// 🔥 Fungsi verifikasi signature
+function verifySignature(payload: any, signature: string, publicKey: string): boolean {
+  try {
+    // Ambil data yang ditandatangani
+    const hashed = crypto.createHash('sha512').update(JSON.stringify(payload)).digest('hex');
+    const verifier = crypto.createVerify('RSA-SHA512');
+    verifier.update(hashed);
+    return verifier.verify(publicKey, signature, 'base64');
+  } catch (error) {
+    console.error('Signature verification error:', error);
+    return false;
+  }
+}
 
-// ============================================================
-//  ENDPOINT: POST /api/payment/notification
-// ============================================================
 export async function POST(request: Request) {
   try {
-    // 1. Ambil body notifikasi
     const body = await request.json();
-    console.log('📥 Notification received:', body);
+    const signature = request.headers.get('x-midtrans-signature') || '';
 
-    // 2. Verifikasi notifikasi menggunakan CoreApi
-    let isValid = false;
-    try {
-      // Gunakan method notification dari CoreApi
-      // @ts-ignore - method mungkin tidak terdeteksi di type
-      const statusResponse = await coreApi.transaction.notification(body);
-      if (statusResponse && statusResponse.status_code) {
-        isValid = true;
-        console.log('✅ Notification verified via CoreApi');
-      }
-    } catch (verifyError) {
-      console.warn('⚠️ CoreApi verification failed, trying manual check:', verifyError);
-      
-      // Fallback: cek signature manual (cara lama)
-      const signatureKey = process.env.MIDTRANS_SERVER_KEY!;
-      const orderId = body.order_id;
-      const statusCode = body.status_code;
-      const grossAmount = body.gross_amount;
-      const serverKey = signatureKey;
-      
-      // Hash manual: SHA512(order_id + status_code + gross_amount + server_key)
-      const crypto = require('crypto');
-      const hash = crypto
-        .createHash('sha512')
-        .update(orderId + statusCode + grossAmount + serverKey)
-        .digest('hex');
-      
-      if (hash === body.signature_key) {
-        isValid = true;
-        console.log('✅ Notification verified via manual signature');
-      } else {
-        console.warn('❌ Signature mismatch');
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
-      }
+    // 🔥 Verifikasi signature
+    const publicKey = process.env.MIDTRANS_PUBLIC_KEY!;
+    if (!verifySignature(body, signature, publicKey)) {
+      console.warn('❌ Invalid signature from Midtrans');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
     }
 
-    if (!isValid) {
-      return NextResponse.json({ error: 'Verification failed' }, { status: 400 });
-    }
-
-    // 3. Proses data transaksi
     const { order_id, transaction_status, gross_amount } = body;
 
     if (transaction_status === 'settlement' || transaction_status === 'capture') {
-      // order_id format: VIP-{userId}-{timestamp}
-      const parts = order_id.split('-');
-      const userId = parts.length >= 2 ? parts[1] : null;
+      const userId = order_id.split('-')[1];
+      if (userId) {
+        const months = Math.floor(gross_amount / 10000) || 1;
+        const newExpiry = new Date();
+        newExpiry.setMonth(newExpiry.getMonth() + months);
+        const expiryDateStr = newExpiry.toISOString().split('T')[0];
 
-      if (!userId) {
-        console.warn('⚠️ User ID tidak ditemukan di order_id:', order_id);
-        return NextResponse.json({ status: 'OK', message: 'User ID not found' });
+        const { error } = await supabase
+          .from('profiles')
+          .update({ vip_expiry: expiryDateStr })
+          .eq('id', userId);
+
+        if (error) {
+          console.error('❌ Gagal update VIP:', error);
+        } else {
+          console.log(`✅ VIP activated for user ${userId} until ${expiryDateStr}`);
+        }
       }
-
-      // Hitung durasi VIP: 1 bulan per 10.000
-      const amount = parseInt(gross_amount) || 10000;
-      const months = Math.floor(amount / 10000) || 1;
-      
-      const newExpiry = new Date();
-      newExpiry.setMonth(newExpiry.getMonth() + months);
-      const expiryDateStr = newExpiry.toISOString().split('T')[0];
-
-      // Update ke Supabase
-      const { supabase } = await import('@/lib/supabaseClient');
-      const { error } = await supabase
-        .from('profiles')
-        .update({ vip_expiry: expiryDateStr })
-        .eq('id', userId);
-
-      if (error) {
-        console.error('❌ Gagal update VIP di Supabase:', error);
-        return NextResponse.json(
-          { error: 'Failed to update profile' },
-          { status: 500 }
-        );
-      }
-
-      console.log(`✅ VIP activated for user ${userId} until ${expiryDateStr}`);
     }
 
-    // 4. Response sukses (Midtrans expects 200 OK)
     return NextResponse.json({ status: 'OK' });
   } catch (error) {
     console.error('❌ Notification error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
