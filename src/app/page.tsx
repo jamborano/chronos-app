@@ -53,10 +53,12 @@ export default function ChronosPomodoro() {
     return () => listener?.subscription.unsubscribe();
   }, []);
 
-  // ===== FETCH PROFILE =====
+  // ===== FETCH PROFILE & SET VIP MODE =====
   useEffect(() => {
     if (!user) {
       setProfileData(null);
+      setIsFocusMode(false);
+      setIsVipMode(false);
       return;
     }
     const fetchProfile = async () => {
@@ -69,33 +71,9 @@ export default function ChronosPomodoro() {
       if (!error && data) {
         setProfileData(data);
         const isVip = data.vip_expiry ? new Date(data.vip_expiry) > new Date() : false;
-        localStorage.setItem('chronos_vip_status', JSON.stringify({ isVipMode: isVip, isFocusMode: isVip }));
         setIsVipMode(isVip);
-        return;
-      }
-
-      // 🔥 Buat profil baru jika belum ada
-      if (!data) {
-        const newProfile = {
-          id: user.id,
-          email: user.email,
-          full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-          avatar_url: user.user_metadata?.avatar_url || null,
-          vip_expiry: null,
-          created_at: new Date().toISOString(),
-        };
-        const { data: inserted, error: insertError } = await supabase
-          .from('profiles')
-          .insert([newProfile])
-          .select()
-          .single();
-        if (!insertError && inserted) {
-          setProfileData(inserted);
-          localStorage.setItem('chronos_vip_status', JSON.stringify({ isVipMode: false, isFocusMode: false }));
-          setIsVipMode(false);
-        } else {
-          console.error('Gagal buat profil:', insertError);
-        }
+        setIsFocusMode(isVip);
+        localStorage.setItem('chronos_vip_status', JSON.stringify({ isVipMode: isVip, isFocusMode: isVip }));
       }
     };
     fetchProfile();
@@ -316,17 +294,28 @@ export default function ChronosPomodoro() {
   };
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
-  const toggleFocusMode = () => {
-    setIsFocusMode(!isFocusMode);
+
+  // ===== 🔥 TOMBOL VIP (akses gratis, bayar dulu) =====
+  const handleVipToggle = () => {
+    // Jika sudah login dan VIP, toggle mode
+    if (user && isVipMode) {
+      setIsFocusMode(!isFocusMode);
+      return;
+    }
+    // Selain itu, tampilkan modal pembayaran (bukan login)
+    setShowPremiumModal(true);
   };
 
-  // ===== 🔥 LOGIN DENGAN GOOGLE (tanpa redirectTo) =====
+  // ===== LOGIN (hanya setelah bayar) =====
   const handleLoginWithGoogle = async () => {
+    if (!isVipMode) {
+      alert('Anda harus membayar VIP terlebih dahulu sebelum login.');
+      return;
+    }
     setIsLoggingIn(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        // Biarkan redirectTo default (diatur oleh Supabase berdasarkan Site URL)
       });
       if (error) {
         console.error('Login error:', error);
@@ -334,7 +323,6 @@ export default function ChronosPomodoro() {
         setIsLoggingIn(false);
       } else {
         setShowLoginModal(false);
-        // Redirect akan terjadi otomatis, loading akan selesai setelah redirect
         setTimeout(() => setIsLoggingIn(false), 5000);
       }
     } catch (err) {
@@ -349,19 +337,18 @@ export default function ChronosPomodoro() {
     setUser(null);
     setProfileData(null);
     setShowProfilePopup(false);
+    setIsFocusMode(false);
   };
 
-  // ===== BAYAR VIP =====
+  // ===== 🔥 BAYAR VIP (tanpa login, langsung ke Midtrans) =====
   const handleBayarVip = async () => {
-    if (!user) {
-      setShowLoginModal(true);
-      setShowPremiumModal(false);
+    // Tidak perlu cek user, langsung proses pembayaran
+    const email = user?.email || prompt('Masukkan email Anda untuk pembayaran:');
+    if (!email) {
+      alert('Email diperlukan untuk pembayaran.');
       return;
     }
-    if (!profileData) {
-      alert('Profil belum siap. Silakan refresh halaman.');
-      return;
-    }
+    const name = user?.user_metadata?.full_name || email.split('@')[0] || 'Pengguna';
 
     setPaymentLoading(true);
     try {
@@ -369,9 +356,9 @@ export default function ChronosPomodoro() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: profileData.id,
-          email: profileData.email,
-          name: profileData.full_name,
+          userId: user?.id || email,
+          email: email,
+          name: name,
           amount: 10000,
         }),
       });
@@ -431,16 +418,24 @@ export default function ChronosPomodoro() {
 
   // ===== PROFILE BUTTON =====
   const ProfileButton = () => {
-    if (user) {
+    if (user && isUserVip) {
       return (
         <div className="relative">
           <button onClick={() => setShowProfilePopup(!showProfilePopup)} className="flex items-center gap-2 focus:outline-none">
-            <img src={user.user_metadata?.avatar_url || '/default-avatar.png'} alt="Avatar" className="w-8 h-8 rounded-full border border-[#30363d] hover:border-[#0366d6] transition-colors" />
+            <img
+              src={user.user_metadata?.avatar_url || '/default-avatar.png'}
+              alt="Avatar"
+              className="w-8 h-8 rounded-full border border-[#30363d] hover:border-[#0366d6] transition-colors object-cover"
+            />
           </button>
           {showProfilePopup && (
             <div ref={popupRef} className={`absolute right-0 mt-2 w-72 rounded-xl shadow-2xl border p-4 z-50 ${theme === 'dark' ? 'bg-[#161b22] border-[#30363d] text-[#e6edf3]' : 'bg-white border-gray-200 text-black'}`}>
               <div className="flex items-center gap-3 mb-3">
-                <img src={user.user_metadata?.avatar_url || '/default-avatar.png'} alt="Avatar" className="w-12 h-12 rounded-full border-2 border-[#0366d6] object-cover" />
+                <img
+                  src={user.user_metadata?.avatar_url || '/default-avatar.png'}
+                  alt="Avatar"
+                  className="w-12 h-12 rounded-full border-2 border-[#0366d6] object-cover"
+                />
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-sm truncate">{user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'}</p>
                   <p className="text-xs text-gray-400 truncate">{user.email}</p>
@@ -466,13 +461,7 @@ export default function ChronosPomodoro() {
         </div>
       );
     }
-    return (
-      <button onClick={() => setShowLoginModal(true)} className={`rounded-full transition-all hover:scale-105 border p-2 flex items-center justify-center ${theme === 'dark' ? 'bg-white/10 hover:bg-white/20 text-[#e6edf3] border-[#30363d]' : 'bg-black/10 hover:bg-black/20 text-black border-black/30'}`}>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-        </svg>
-      </button>
-    );
+    return null;
   };
 
   // ===== RENDER =====
@@ -491,9 +480,16 @@ export default function ChronosPomodoro() {
           <div className={`text-xl font-bold tracking-[0.3em] ${textColor}`}>CHRONOS</div>
         </div>
         <div className="flex items-center gap-3">
-          {isFocusMode && isVipMode && <ProfileButton />}
-          <button onClick={toggleFocusMode} className={`rounded-full transition-all hover:scale-105 border px-4 py-1.5 text-xs font-bold tracking-wider ${theme === 'dark' ? 'bg-[#0366d6] text-white border-[#0366d6] hover:bg-[#0355b0]' : 'bg-black text-white border-black hover:bg-gray-800'}`}>
-            {isFocusMode ? 'FREE' : 'VIP'}
+          {user && isUserVip && isFocusMode && <ProfileButton />}
+          <button
+            onClick={handleVipToggle}
+            className={`rounded-full transition-all hover:scale-105 border px-4 py-1.5 text-xs font-bold tracking-wider ${
+              theme === 'dark'
+                ? 'bg-[#0366d6] text-white border-[#0366d6] hover:bg-[#0355b0]'
+                : 'bg-black text-white border-black hover:bg-gray-800'
+            }`}
+          >
+            {isFocusMode && isUserVip ? 'FREE' : 'VIP'}
           </button>
         </div>
       </header>
@@ -511,7 +507,7 @@ export default function ChronosPomodoro() {
                 </div>
                 <a href="https://www.youtube.com/watch?v=OUnk5RpRKzA" target="_blank" rel="noopener" className={`text-[9px] flex items-center gap-1 justify-center mt-1 transition-colors ${mutedText} hover:text-[#ff0000]`}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                    <path d="M23.498 6.186..."/>
                   </svg>
                   Buka di YouTube
                 </a>
@@ -595,7 +591,7 @@ export default function ChronosPomodoro() {
                 </div>
                 <a href="https://www.youtube.com/watch?v=hnGt0Jb2H2g" target="_blank" rel="noopener" className={`text-[9px] flex items-center gap-1 justify-center mt-1 transition-colors ${mutedText} hover:text-[#ff0000]`}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                    <path d="M23.498 6.186..."/>
                   </svg>
                   Buka di YouTube
                 </a>
@@ -614,7 +610,7 @@ export default function ChronosPomodoro() {
         <span>©2026 Chronos</span><span className="mx-2">-</span><a href="https://jbtech.biz.id" target="_blank" rel="noopener" className="hover:underline text-[#0366d6]">jbtech.biz.id</a><span className="ml-2">All rights reserved.</span>
       </footer>
 
-      {/* ===== MODAL VIP ===== */}
+      {/* ===== MODAL VIP (PEMBAYARAN, BUKAN LOGIN) ===== */}
       {showPremiumModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
@@ -646,6 +642,7 @@ export default function ChronosPomodoro() {
               <div className={`text-xs mt-0.5 ${mutedText}`}>/ bulan · berlangganan hingga dibatalkan</div>
             </div>
 
+            {/* 🔥 TOMBOL BAYAR LANGSUNG KE MIDTRANS (TANPA LOGIN) */}
             <button
               onClick={handleBayarVip}
               disabled={paymentLoading}
@@ -664,14 +661,13 @@ export default function ChronosPomodoro() {
                   Memproses...
                 </span>
               ) : (
-                '💳 Aktifkan VIP (Rp 10.000)'
+                '💳 Bayar & Aktifkan VIP (Rp 10.000)'
               )}
             </button>
 
             <button
               onClick={() => {
                 setShowPremiumModal(false);
-                setIsFocusMode(false);
                 setTimerState('idle');
                 setCurrentTask('');
                 resetTimer(currentMode);
@@ -696,7 +692,7 @@ export default function ChronosPomodoro() {
         </div>
       )}
 
-      {/* ===== MODAL LOGIN ===== */}
+      {/* ===== MODAL LOGIN (hanya muncul setelah bayar) ===== */}
       {showLoginModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => { if (!isLoggingIn) setShowLoginModal(false); }}>
           <div className={`w-full max-w-sm mx-4 p-8 rounded-2xl shadow-2xl animate-slide-up ${theme === 'dark' ? 'bg-[#161b22] border border-[#30363d]' : 'bg-white border border-gray-200'}`} onClick={(e) => e.stopPropagation()}>
