@@ -113,7 +113,6 @@ export default function ChronosPomodoro() {
         events: {
           onReady: (event: any) => {
             playerRef.current = event.target;
-            // 🔥 Tidak unmute otomatis, biarkan user klik tombol suara
           },
           onError: () => {
             const container = document.getElementById('youtube-player-container');
@@ -131,7 +130,6 @@ export default function ChronosPomodoro() {
     }
   };
 
-  // ===== UNMUTE YOUTUBE (user-initiated) =====
   const handleUnmute = () => {
     if (playerRef.current) {
       playerRef.current.unMute();
@@ -296,19 +294,17 @@ export default function ChronosPomodoro() {
 
   // ===== TOMBOL VIP =====
   const handleVipToggle = () => {
+    // Jika sudah login dan VIP, toggle mode
     if (user && isVipMode) {
       setIsFocusMode(!isFocusMode);
       return;
     }
+    // Selain itu, tampilkan modal VIP (paket harga)
     setShowPremiumModal(true);
   };
 
   // ===== LOGIN =====
   const handleLoginWithGoogle = async () => {
-    if (!isVipMode) {
-      alert('Anda harus membayar VIP terlebih dahulu sebelum login.');
-      return;
-    }
     setIsLoggingIn(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -320,6 +316,7 @@ export default function ChronosPomodoro() {
         setIsLoggingIn(false);
       } else {
         setShowLoginModal(false);
+        // Login akan redirect, kita biarkan
         setTimeout(() => setIsLoggingIn(false), 5000);
       }
     } catch (err) {
@@ -337,24 +334,24 @@ export default function ChronosPomodoro() {
     setIsFocusMode(false);
   };
 
-  // ===== BAYAR VIP =====
+  // ===== 🔥 BAYAR VIP (WAJIB LOGIN DAHULU) =====
   const handleBayarVip = async () => {
-    const email = user?.email || prompt('Masukkan email Anda untuk pembayaran:');
-    if (!email) {
-      alert('Email diperlukan untuk pembayaran.');
-      return;
+    // 1. Cek apakah user sudah login
+    if (!user) {
+      setShowLoginModal(true);
+      return; // Stop proses, tunggu login
     }
-    const name = user?.user_metadata?.full_name || email.split('@')[0] || 'Pengguna';
 
+    // 2. Jika sudah login, lanjutkan ke pembayaran
     setPaymentLoading(true);
     try {
       const response = await fetch('/api/payment/create-vip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: user?.id || email,
-          email: email,
-          name: name,
+          userId: user.id,
+          email: user.email,
+          name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Pengguna',
           amount: 10000,
         }),
       });
@@ -686,6 +683,8 @@ export default function ChronosPomodoro() {
               <div className={`text-3xl font-bold text-[#e6edf3]`}>Rp 10.000</div>
               <div className={`text-xs mt-0.5 ${mutedText}`}>/ bulan · berlangganan hingga dibatalkan</div>
             </div>
+
+            {/* 🔥 TOMBOL BAYAR - WAJIB LOGIN */}
             <button
               onClick={handleBayarVip}
               disabled={paymentLoading}
@@ -707,6 +706,7 @@ export default function ChronosPomodoro() {
                 '💳 Bayar & Aktifkan VIP (Rp 10.000)'
               )}
             </button>
+
             <button
               onClick={() => {
                 setShowPremiumModal(false);
@@ -741,6 +741,7 @@ export default function ChronosPomodoro() {
               <div className={`text-2xl font-bold ${theme === 'dark' ? 'text-[#e6edf3]' : 'text-black'}`}>Login</div>
               <div className={`text-sm mt-1 ${mutedText}`}>Masuk dengan akun Google</div>
             </div>
+
             <button
               onClick={handleLoginWithGoogle}
               disabled={isLoggingIn}
@@ -766,12 +767,14 @@ export default function ChronosPomodoro() {
                 </>
               )}
             </button>
+
             <button
               onClick={() => { if (!isLoggingIn) setShowLoginModal(false); }}
               className={`w-full mt-3 py-2 rounded-full text-xs tracking-wide transition-all border ${theme === 'dark' ? 'text-[#e6edf3]/60 border-[#30363d] hover:text-white hover:border-white/30' : 'text-black/60 border-black/20 hover:text-black hover:border-black/50'}`}
             >
               Tutup
             </button>
+
             <button
               onClick={() => { if (!isLoggingIn) setShowLoginModal(false); }}
               className="absolute top-4 right-4 text-2xl text-white/40 hover:text-white"
